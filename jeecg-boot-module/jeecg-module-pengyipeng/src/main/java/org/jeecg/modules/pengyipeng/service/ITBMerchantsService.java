@@ -10,6 +10,8 @@ import org.jeecg.modules.pengyipeng.entity.TBAgent;
 import org.jeecg.modules.pengyipeng.entity.TBMerchants;
 import com.baomidou.mybatisplus.extension.service.IService;
 import org.jeecg.modules.pengyipeng.mapper.TBMerchantsMapper;
+import org.jeecg.modules.pengyipeng.vo.MerchantKeywordClassificationRequestVO;
+import org.jeecg.modules.pengyipeng.vo.MerchantLittleTagRequestVO;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -40,6 +42,13 @@ public interface ITBMerchantsService extends IService<TBMerchants> {
     String getOpenId(String code);
 
     TBMerchants saveMerchant(String openId, MerchantLoginDto loginDto);
+
+
+    String getXAccessToken(String sysUid);
+
+    void saveTagInfoTODB(MerchantLittleTagRequestVO requestVO);
+
+    void saveBigTagToDB(MerchantKeywordClassificationRequestVO requestVO);
 
 
 }

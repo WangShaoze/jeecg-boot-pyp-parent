@@ -233,4 +233,7 @@ public class TBMerchants implements Serializable {
 
     @TableField(exist = false) //表示该属性不为数据库表字段，但又是必须使用的。
     private String agentName;
+
+    @TableField(exist = false) //表示该属性不为数据库表字段，但又是必须使用的。
+    private String token;
 }

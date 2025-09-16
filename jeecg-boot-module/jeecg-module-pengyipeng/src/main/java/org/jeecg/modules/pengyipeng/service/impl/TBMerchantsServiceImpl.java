@@ -16,20 +16,35 @@ import com.xkcoding.http.HttpUtil;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.error.WxErrorException;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.shiro.SecurityUtils;
+import org.jeecg.common.api.vo.Result;
+import org.jeecg.common.constant.CommonConstant;
+import org.jeecg.common.system.util.JwtUtil;
+import org.jeecg.common.system.vo.LoginUser;
 import org.jeecg.common.util.PasswordUtil;
+import org.jeecg.common.util.RedisUtil;
+import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.config.shiro.IgnoreAuth;
+import org.jeecg.modules.base.service.BaseCommonService;
 import org.jeecg.modules.pengyipeng.dto.MerchantInfoResponseDTO;
 import org.jeecg.modules.pengyipeng.dto.MerchantLoginDto;
 import org.jeecg.modules.pengyipeng.dto.MerchantServiceInfoDTO;
 import org.jeecg.modules.pengyipeng.entity.TBAgent;
 import org.jeecg.modules.pengyipeng.entity.TBLicenses;
 import org.jeecg.modules.pengyipeng.entity.TBMerchants;
+import org.jeecg.modules.pengyipeng.entity.TBTag;
 import org.jeecg.modules.pengyipeng.mapper.TBMerchantsMapper;
 import org.jeecg.modules.pengyipeng.service.ITBAgentService;
 import org.jeecg.modules.pengyipeng.service.ITBLicensesService;
 import org.jeecg.modules.pengyipeng.service.ITBMerchantsService;
+import org.jeecg.modules.pengyipeng.service.ITBTagService;
 import org.jeecg.modules.pengyipeng.utils.RandomUtil;
 import org.jeecg.modules.pengyipeng.utils.UUIDGenerator;
+import org.jeecg.modules.pengyipeng.vo.MerchantKeywordClassificationRequestVO;
+import org.jeecg.modules.pengyipeng.vo.MerchantLittleTagRequestVO;
+import org.jeecg.modules.system.entity.SysUser;
+import org.jeecg.modules.system.service.ISysUserService;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -39,13 +54,11 @@ import org.springframework.transaction.annotation.Transactional;
 import cn.binarywang.wx.miniapp.api.WxMaService;
 
 
+import javax.annotation.Resource;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -57,6 +70,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMerchants> implements ITBMerchantsService {
+    @Autowired
+    private ISysUserService sysUserService;
 
     @Autowired
     private ITBLicensesService licensesService;
@@ -67,6 +82,13 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
 
     @Autowired
     private WxMaService wxMaService;
+    @Autowired
+    private RedisUtil redisUtil;
+    @Resource
+    private BaseCommonService baseCommonService;
+
+    @Autowired
+    private ITBTagService tagService;
 
 
     public IPage<MerchantServiceInfoDTO> getMerchantServiceInfo(Page<MerchantServiceInfoDTO> page,
@@ -240,8 +262,100 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
     }
 
     @Override
+    public String getXAccessToken(String sysUid) {
+        SysUser sysUser = sysUserService.getById(sysUid);
+        //1.生成token
+        String token = JwtUtil.sign(sysUser.getUsername(), sysUser.getPassword());
+        // 设置token缓存有效时间
+        redisUtil.set(CommonConstant.PREFIX_USER_TOKEN + token, token);
+        redisUtil.expire(CommonConstant.PREFIX_USER_TOKEN + token, JwtUtil.EXPIRE_TIME * 2 / 1000);
+
+        // step.6  记录用户登录日志
+        LoginUser loginUser = new LoginUser();
+        BeanUtils.copyProperties(sysUser, loginUser);
+        baseCommonService.addLog("用户名: " + sysUser.getUsername() + ",登录成功！", CommonConstant.LOG_TYPE_1, null, loginUser);
+        return token;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void saveTagInfoTODB(MerchantLittleTagRequestVO requestVO) {
+        List<String> keywordList = requestVO.getKeywordList();
+        if (!keywordList.isEmpty()) {
+            QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
+            tagQueryWrapper.eq("merchant_id", requestVO.getMerchantId());
+            tagQueryWrapper.eq("parent_id", requestVO.getBigTagId());
+            tagQueryWrapper.eq("is_package_keyword", "0");  // 不是套餐标签
+            tagQueryWrapper.eq("is_big_classification", "0");  // 不是大标签
+
+            // 移除之前存在的TBTag
+            tagService.getBaseMapper().delete(tagQueryWrapper);
+
+            // 包装
+            List<TBTag> tagList = new ArrayList<>();
+            keywordList.forEach(keyword -> {
+                TBTag tag = new TBTag();
+                tag.setKeyword(keyword);
+                tag.setMerchantId(requestVO.getMerchantId());
+                tag.setParentId(requestVO.getBigTagId());
+                tag.setIsPackageKeyword("0");
+                tag.setIsBigClassification("0");
+                tagList.add(tag);
+            });
+            // 保存
+            tagService.saveBatch(tagList);
+        }
+
+        // 保存图片列表
+        /*List<String> picList = requestVO.getPicList();
+        if (!picList.isEmpty()) {
+            TBTag bigTag = tagService.getById(requestVO.getBigTagId());
+            bigTag.setPicList(String.join(",", picList));
+            tagService.updateById(bigTag);
+        }*/
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void saveBigTagToDB(MerchantKeywordClassificationRequestVO requestVO) {
+        QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
+        tagQueryWrapper.eq("merchant_id", requestVO.getMerchantId());
+        tagQueryWrapper.eq("is_package_keyword", "0");  // 不是套餐标签
+        tagQueryWrapper.eq("is_big_classification", "1");  // 是大标签
+        List<TBTag> tagListInDB = tagService.getBaseMapper().selectList(tagQueryWrapper);
+        Map<String, TBTag> tagMap = new HashMap<>();
+        tagListInDB.forEach(tag -> tagMap.put(tag.getKeyword(), tag));
+        //List<String> tagKeywordList = tagListInDB.stream().map(TBTag::getKeyword).toList();
+        if (tagMap.containsKey(requestVO.getBigKeywordName())) {
+            // 更新
+            TBTag tag = tagMap.get(requestVO.getBigKeywordName());
+            if (!requestVO.getPicList().isEmpty()) {
+                tag.setPicList(String.join(",", requestVO.getPicList()));
+            } else {
+                tag.setPicList("");
+            }
+            tagService.updateById(tag);
+        } else {
+            // new
+            TBTag tag = new TBTag();
+            tag.setMerchantId(requestVO.getMerchantId());
+            tag.setIsBigClassification("1");
+            tag.setIsPackageKeyword("0");
+            tag.setKeyword(requestVO.getBigKeywordName());
+            if (!requestVO.getPicList().isEmpty()) {
+                tag.setPicList(String.join(",", requestVO.getPicList()));
+            } else {
+                tag.setPicList("");
+            }
+            tagService.save(tag);
+        }
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public MerchantLoginDto registerSysUser(String phone) {
+        LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+        log.info("当前登录用户信息:\n{}", JSON.toJSONString(sysUser));
         MerchantLoginDto loginDto = new MerchantLoginDto();
         String sixRandomNumber = RandomUtil.randomNumeric6();
         loginDto.setId(UUIDGenerator.generate32BitUUID());
@@ -253,24 +367,44 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
         loginDto.setEmail("dianjia" + sixRandomNumber + "@qq.com");
         loginDto.setPhone(phone);
         loginDto.setActivitiSync(1);
-        loginDto.setSalt(RandomUtil.randomAlphanumeric6());
-        loginDto.setPassword(PasswordUtil.encrypt(loginDto.getUsername(), "123456", loginDto.getSalt()));
+        String salt = oConvertUtils.randomGen(8);
+        loginDto.setSalt(salt);
+        String passwordEncode = PasswordUtil.encrypt(loginDto.getUsername(), CommonConstant.DEFAULT_PASSWORD, salt);
+        loginDto.setPassword(passwordEncode);
+        loginDto.setWorkNo(RandomUtil.randomAlphanumeric6() + RandomUtil.randomAlphanumeric6());
         loginDto.setDepartIds("");
-        int successNum = baseMapper.saveSysUser(loginDto.getId(), loginDto.getUsername(),
-                loginDto.getRealname(), loginDto.getWorkNo(),
-                loginDto.getUserIdentity(), loginDto.getEmail(),
-                loginDto.getPhone(), loginDto.getActivitiSync(),
-                loginDto.getPassword(), loginDto.getSalt(), loginDto.getDepartIds());
-        if (successNum == 1) {
-            // 用户角色插入
-            int successNum1 = baseMapper.insertSysUserRole(UUIDGenerator.generate32BitUUID(), loginDto.getId(), loginDto.getSelectedroles());
-            if (successNum1 != 1) {
-                throw new RuntimeException("注册失败");
-            }
+        loginDto.setStatus(CommonConstant.USER_UNFREEZE);
+        loginDto.setDelFlag(CommonConstant.DEL_FLAG_0);
+        loginDto.setActivitiSync(CommonConstant.ACT_SYNC_1);
+        loginDto.setUserIdentity(CommonConstant.USER_IDENTITY_1);
+
+        try {
+            SysUser user = new SysUser();
+            BeanUtils.copyProperties(loginDto, user);
+            user.setCreateTime(new Date());
+            user.setCreateBy(sysUser.getUsername());
+            sysUserService.addUserWithRole(user, loginDto.getSelectedroles());  // 店家角色
             return loginDto;
-        } else {
-            throw new RuntimeException("注册失败");
+        } catch (Exception e) {
+            log.error("registerSysUser:{}", e.getMessage());
+            throw new RuntimeException("手机号登录时，注册系统用户出错！请联系管理员！");
         }
+
+//        int successNum = baseMapper.saveSysUser(loginDto.getId(), loginDto.getUsername(),
+//                loginDto.getRealname(), loginDto.getWorkNo(),
+//                loginDto.getUserIdentity(), loginDto.getEmail(),
+//                loginDto.getPhone(), loginDto.getActivitiSync(),
+//                loginDto.getPassword(), loginDto.getSalt(), loginDto.getDepartIds());
+//        if (successNum == 1) {
+//            // 用户角色插入
+//            int successNum1 = baseMapper.insertSysUserRole(UUIDGenerator.generate32BitUUID(), loginDto.getId(), loginDto.getSelectedroles());
+//            if (successNum1 != 1) {
+//                throw new RuntimeException("注册失败");
+//            }
+//            return loginDto;
+//        } else {
+//            throw new RuntimeException("注册失败");
+//        }
     }
 
 }

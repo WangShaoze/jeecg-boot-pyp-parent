@@ -22,6 +22,7 @@ import org.jeecg.modules.pengyipeng.entity.*;
 import org.jeecg.modules.pengyipeng.service.*;
 import org.jeecg.modules.pengyipeng.service.impl.XhsAuthService;
 import org.jeecg.modules.pengyipeng.utils.PhoneNumberValidator;
+import org.jeecg.modules.pengyipeng.vo.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +74,230 @@ public class AppController {
     private XhsAuthService xhsAuthService;
     @Autowired
     private ITBAppInfoService appInfoService;
+    @Autowired
+    private ITBTagService tagService;
+    @Autowired
+    private ITBClassificationOptionService classificationOptionService;
+    @Autowired
+    private ITBClassificationMerchantMiddleService classificationMerchantMiddleService;
+
+
+    /**
+     * （开启|关闭）商家的指定分类
+     */
+    @AutoLog(value = "App接口-小程序-（开启|关闭）商家的指定分类")
+    @Operation(summary = "App接口-小程序-（开启|关闭）商家的指定分类")
+    @GetMapping(value = "openMerchantClassification")
+    @Transactional(rollbackFor = Exception.class)
+    public Result<String> openMerchantClassification(
+            @RequestParam(name = "merchantId") Integer merchantId,
+            @RequestParam(name = "classificationOptionId") String classificationOptionId,
+            @RequestParam(name = "isOpen", defaultValue = "0", required = true) Integer isOpen
+    ) {
+        if (StringUtils.isEmpty(classificationOptionId) || merchantId == null || isOpen == null) {
+            return Result.error("请输入正确的参数！");
+        }
+        // 商家判断
+        QueryWrapper<TBMerchants> merchantsQueryWrapper = new QueryWrapper<>();
+        merchantsQueryWrapper.eq("id", merchantId);
+        Long count = merchantsService.getBaseMapper().selectCount(merchantsQueryWrapper);
+        if (count != 1) {
+            return Result.error("找不到指定商家!");
+        }
+
+        // 校验分类是否存在
+        QueryWrapper<TBClassificationOption> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("id", classificationOptionId);
+        TBClassificationOption classificationOption = classificationOptionService.getBaseMapper().selectOne(queryWrapper);
+        if (classificationOption == null) {
+            return Result.error("找不到平台可选的该分类！");
+        }
+
+
+        // 在中间表中创建关联记录
+        QueryWrapper<TBClassificationMerchantMiddle> middleQueryWrapper = new QueryWrapper<>();
+        middleQueryWrapper.eq("merchant_id", merchantId);
+        middleQueryWrapper.eq("classification_option_id", merchantId);
+        TBClassificationMerchantMiddle classificationMerchantMiddle = classificationMerchantMiddleService.getBaseMapper().selectOne(middleQueryWrapper);
+        if (classificationMerchantMiddle == null) {
+            // 找不到对应的 中间表记录 ==> 新建
+            classificationMerchantMiddle = new TBClassificationMerchantMiddle();
+        }
+        classificationMerchantMiddle.setMerchantId(merchantId);
+        classificationMerchantMiddle.setIsOpen(isOpen.toString());
+        classificationMerchantMiddle.setClassificationOptionId(classificationOptionId);
+        classificationMerchantMiddleService.saveOrUpdate(classificationMerchantMiddle);
+        // 在标签表中创建分类
+        MerchantKeywordClassificationRequestVO requestVO = new MerchantKeywordClassificationRequestVO();
+        requestVO.setMerchantId(merchantId);
+        requestVO.setBigKeywordName(classificationOption.getClassificationChineseName());
+        requestVO.setPicList(new ArrayList<>());
+        merchantsService.saveBigTagToDB(requestVO);
+        return Result.ok("开启成功!");
+    }
+
+
+    /**
+     * 获取平台支持的标签分类
+     */
+    @AutoLog(value = "App接口-小程序-获取平台支持的标签分类")
+    @Operation(summary = "App接口-小程序-获取平台支持的标签分类")
+    @GetMapping(value = "getPlatformClassificationOptions")
+    public Result<List<TBClassificationOption>> getPlatformClassificationOptions() {
+        return Result.ok(classificationOptionService.getBaseMapper().selectList(new QueryWrapper<>()));
+    }
+
+
+    /**
+     * 设置店铺关键词及图片
+     */
+    @AutoLog(value = "App接口-小程序-设置店铺小标签")
+    @Operation(summary = "App接口-小程序-设置店铺小标签")
+    @RequestMapping(value = "saveLittleTag", method = {RequestMethod.POST, RequestMethod.GET})
+    public Result<String> saveLittleTag(@RequestBody MerchantLittleTagRequestVO requestVO) {
+        if (requestVO.getMerchantId() == null) {
+            return Result.error("出入参数中没有商家ID");
+        }
+        if (StringUtils.isEmpty(requestVO.getBigTagId())) {
+            return Result.error("没有大分类标签！");
+        }
+        QueryWrapper<TBMerchants> merchantsQueryWrapper = new QueryWrapper<>();
+        merchantsQueryWrapper.eq("id", requestVO.getMerchantId());
+        Long count = merchantsService.getBaseMapper().selectCount(merchantsQueryWrapper);
+        if (count != 1) {
+            return Result.error("找不到指定商家!");
+        }
+        try {
+            merchantsService.saveTagInfoTODB(requestVO);
+            return Result.ok("数据保存成功！");
+        } catch (Exception e) {
+            log.error("saveKeywordAndPic:出现错误！错误原因:{}", e.getMessage());
+            return Result.error("数据保存失败！请联系管理员");
+        }
+    }
+
+    /**
+     * 设置店铺关键词及图片
+     */
+    @AutoLog(value = "App接口-小程序-获取店铺小标签")
+    @Operation(summary = "App接口-小程序-获取店铺小标签")
+    @GetMapping(value = "getLittleTag")
+    public Result<List<LittleTagVO>> getLittleTag(@RequestParam(name = "merchantId") Integer merchantId, @RequestParam(name = "bigTagId") String bigTagId) {
+        if (StringUtils.isEmpty(bigTagId) || merchantId == null) {
+            return Result.error("请正确输入参数！");
+        }
+        QueryWrapper<TBMerchants> merchantsQueryWrapper = new QueryWrapper<>();
+        merchantsQueryWrapper.eq("id", merchantId);
+        Long count = merchantsService.getBaseMapper().selectCount(merchantsQueryWrapper);
+        if (count != 1) {
+            return Result.error("找不到指定商家!");
+        }
+        QueryWrapper<TBTag> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("merchant_id", merchantId);
+        queryWrapper.eq("is_package_keyword", "0");
+        queryWrapper.eq("is_big_classification", "1");
+        List<TBTag> classificationList = tagService.getBaseMapper().selectList(queryWrapper);
+        List<String> classificationIdList = classificationList.stream().map(TBTag::getId).toList();
+        if (!classificationIdList.contains(bigTagId)) {
+            return Result.error("找不到这个分类!");
+        }
+
+        queryWrapper.clear();
+        queryWrapper.eq("merchant_id", merchantId);
+        queryWrapper.eq("parent_id", bigTagId);
+        List<TBTag> littleTagList = tagService.getBaseMapper().selectList(queryWrapper);
+        List<LittleTagVO> voList = new ArrayList<>();
+        if (!littleTagList.isEmpty()) {
+            littleTagList.forEach(littleTag -> {
+                LittleTagVO vo = new LittleTagVO();
+                vo.setId(littleTag.getId());
+                vo.setBigTagId(littleTag.getParentId());
+                vo.setKeyword(littleTag.getKeyword());
+                voList.add(vo);
+            });
+        }
+        return Result.ok(voList);
+
+    }
+
+    /**
+     * 保存店铺关键词分类
+     */
+    @AutoLog(value = "App接口-小程序-保存店铺关键词分类")
+    @Operation(summary = "App接口-小程序-保存店铺关键词分类")
+    @RequestMapping(value = "saveKeywordClassification", method = {RequestMethod.POST, RequestMethod.GET})
+    public Result<MerchantKeywordClassificationVO> saveKeywordClassification(@RequestBody MerchantKeywordClassificationRequestVO requestVO) {
+        if (requestVO.getMerchantId() == null) {
+            return Result.error("出入参数中没有商家ID");
+        }
+        QueryWrapper<TBMerchants> merchantsQueryWrapper = new QueryWrapper<>();
+        merchantsQueryWrapper.eq("id", requestVO.getMerchantId());
+        Long count = merchantsService.getBaseMapper().selectCount(merchantsQueryWrapper);
+        if (count != 1) {
+            return Result.error("找不到指定商家!");
+        }
+        if (StringUtils.isEmpty(requestVO.getBigKeywordName())) {
+            return Result.error("大标签不可以为空！");
+        }
+        try {
+            merchantsService.saveBigTagToDB(requestVO);
+            return Result.ok("数据保存成功！");
+        } catch (Exception e) {
+            log.error("saveKeywordClassification:出现错误！错误原因:{}", e.getMessage());
+            return Result.error("数据保存失败！请联系管理员");
+        }
+    }
+
+
+    /**
+     * 店铺关键词分类
+     */
+    @AutoLog(value = "App接口-小程序-获取店铺关键词分类")
+    @Operation(summary = "App接口-小程序-获取店铺关键词分类")
+    @GetMapping(value = "keywordClassification")
+    public Result<MerchantKeywordClassificationVO> getKeywordClassification(@RequestParam Integer merchantId) {
+        if (merchantId == null) {
+            return Result.error("请正确输出参数！");
+        }
+        QueryWrapper<TBMerchants> merchantsQueryWrapper = new QueryWrapper<>();
+        merchantsQueryWrapper.eq("id", merchantId);
+        Long count = merchantsService.getBaseMapper().selectCount(merchantsQueryWrapper);
+        if (count != 1) {
+            return Result.error("找不到指定商家!");
+        }
+        MerchantKeywordClassificationVO vo = new MerchantKeywordClassificationVO();
+        vo.setMerchantId(merchantId);
+        List<KeywordClassificationVO> voList = new ArrayList<>();
+        QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
+        tagQueryWrapper.eq("merchant_id", merchantId);
+        tagQueryWrapper.eq("is_package_keyword", "0");  // 不是套餐标签
+        tagQueryWrapper.eq("is_big_classification", "1");  // 是大标签
+        List<TBTag> tbTags = tagService.getBaseMapper().selectList(tagQueryWrapper);
+        tbTags.forEach(tag -> {
+            KeywordClassificationVO keywordClassificationVO = new KeywordClassificationVO();
+            keywordClassificationVO.setId(tag.getId());
+            keywordClassificationVO.setBigKeywordName(tag.getKeyword());
+            if (!StringUtils.isEmpty(tag.getPicList())) {
+                keywordClassificationVO.setPicList(Arrays.asList(tag.getPicList().split(",")));   // 设置 图片列表
+            } else {
+                keywordClassificationVO.setPicList(new ArrayList<>());   // 设置 图片列表
+            }
+            voList.add(keywordClassificationVO);
+        });
+
+        // 过滤掉关闭的大分类
+        QueryWrapper<TBClassificationMerchantMiddle> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("merchant_id", merchantId);  // 商家ID
+        queryWrapper.eq("is_open", "1");   // 开启状态
+        List<TBClassificationMerchantMiddle> mList = classificationMerchantMiddleService.getBaseMapper().selectList(queryWrapper);
+        QueryWrapper<TBClassificationOption> optionQueryWrapper = new QueryWrapper<>();
+        optionQueryWrapper.in("id", mList.stream().map(TBClassificationMerchantMiddle::getClassificationOptionId).toList());
+        List<TBClassificationOption> openList = classificationOptionService.getBaseMapper().selectList(optionQueryWrapper);
+        List<String> classificationNameList = openList.stream().map(TBClassificationOption::getClassificationChineseName).toList();
+        vo.setKeywordClassification(voList.stream().filter(w -> classificationNameList.contains(w.getBigKeywordName())).toList());
+        return Result.ok(vo);
+    }
+
 
     /**
      * 获取商家端入口主图
@@ -174,6 +399,9 @@ public class AppController {
                     merchant.setEnabledPlatforms("3,");   // 设置可用平台
                     merchant.setStatus("ACTIVE");
                     merchantsService.updateById(merchant);
+                    // 获取token
+                    String token = merchantsService.getXAccessToken(loginDto.getId());
+                    merchant.setToken(token);
                 } else {
                     return Result.error("用户code获取到的手机号无效！");
                 }
@@ -207,6 +435,9 @@ public class AppController {
             return Result.error("merchant:" + merchant + " -> null");
         }
         merchant.setOpenid(openid);
+        // 获取token
+        String token = merchantsService.getXAccessToken(merchant.getSysUid());
+        merchant.setToken(token);
         if (merchantsService.updateById(merchant)) {
             return Result.ok(merchant);
         } else {
@@ -252,6 +483,9 @@ public class AppController {
                 log.info("merchantSilentLogin: licenses.getStatus() -> 3");
                 return Result.error("登录失败！证书不已过期！");
             }
+            // 获取token
+            String token = merchantsService.getXAccessToken(merchant.getSysUid());
+            merchant.setToken(token);
             return Result.ok(merchant);
         } catch (Exception e) {
             log.info("merchantSilentLogin:{}", e.getMessage());

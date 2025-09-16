@@ -629,4 +629,15 @@ public interface CommonConstant {
     * 修改手机号验证码请求次数超出
     */
    Integer PHONE_SMS_FAIL_CODE = 40002;
+
+
+   /**
+    * 默认用户登录密码
+    * */
+    String DEFAULT_PASSWORD = "";
+
+    /**
+     * 通过手机号注册时邮箱默认后缀
+     */
+    String EMAIL_DEFAULT_SUFFIX = "@139.com";
 }

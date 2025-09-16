@@ -25,4 +25,6 @@ public class MerchantLoginDto {
     private String password;
     private String salt;
     private String departIds;
+    private Integer status;
+    private Integer delFlag;
 }

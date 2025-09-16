@@ -67,6 +67,10 @@
             <artifactId>commons-io</artifactId>
             <version>2.13.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.jeecgframework.boot</groupId>
+            <artifactId>jeecg-system-biz</artifactId>
+        </dependency>
 
     </dependencies>
 
