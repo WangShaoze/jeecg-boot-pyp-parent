@@ -93,7 +93,12 @@ public class TBMerchantPlatformMiddleServiceImpl extends ServiceImpl<TBMerchantP
         if (!StringUtils.isEmpty(shortLinkStr)) {
             String url = getShortLinkUrl(shortLinkStr);
             try {
-                String newUrl = playwrightService.getFinalUrl(url);
+                String newUrl;
+                if (!platformName.equals("dazhong")){
+                    newUrl = playwrightService.getFinalUrl(url);
+                }else{
+                    newUrl = url;
+                }
                 rsl = parseQueryParams(getShortLinkUrl(newUrl));
                 System.out.println(rsl);
             } catch (Exception e) {
@@ -107,7 +112,7 @@ public class TBMerchantPlatformMiddleServiceImpl extends ServiceImpl<TBMerchantP
             parseResult = "weixin://";
         } else if (platformName.equals("dazhong")) {
             String finalUrl = (String) rsl.get("finalUrl");
-            parseResult = "dianping://shopinfo?shopuuid=" + finalUrl.substring(finalUrl.lastIndexOf("/"));
+            parseResult = "dianping://shopinfo?shopuuid=" + finalUrl.substring(finalUrl.lastIndexOf("/")+1);
         } else if (platformName.equals("douyin")) {
             Map<String, String> queryParams = (Map<String, String>) rsl.get("queryParams");
             String poiId = queryParams.get("poi_id");

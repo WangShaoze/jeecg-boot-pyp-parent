@@ -58,6 +58,76 @@ public class APPUserController {
     @Autowired
     private ITBClickOperationStatService tBClickOperationStatService;
 
+    @Autowired
+    private ITBClassificationOptionService classificationOptionService;
+    @Autowired
+    private ITBClassificationMerchantMiddleService classificationMerchantMiddleService;
+
+
+    /**
+     * 生成AI提示词的逻辑
+     * 1.基础校验要使用 商家id ===> 传入 [merchantId]
+     * 2.用户选择的【店铺分类下的小标签】+【店铺该分类对应的2张图片】  ===> 传入小标签的id列表使用逗号隔开 [littleTagIds]
+     * 3.用户选择的【套餐】 ==> 从套餐中获取套餐的【描述信息】和【关键词】并从套餐中随机选择1张【图片】    ===>  传入套餐的id [packageId]
+     * 4.发布平台 ===> 传入字数 [usePlatform]
+     * 5.小红书平台的文案字数可能较多1000字左右, 这个参数默认200字模拟普通的评论 ===> 传入字数 [aiTokens]
+     * 返回值:
+     * aiPrompt: string
+     * picList: [string,string,string]
+     *
+     * @param merchantId   商家ID
+     * @param littleTagIds 小标签的Id列表
+     * @param packageId    套餐ID
+     * @param postPlatform 发布平台
+     * @param aiTokens     AI生成字数
+     * @return Map<String, Object>
+     */
+    @AutoLog(value = "App接口-小程序-生成AI提示词")
+    @Operation(summary = "App接口-小程序-生成AI提示词")
+    @GetMapping(value = "generateAiPrompt")
+    public Result<Map<String, Object>> generateAiPrompt(
+            @RequestParam(name = "merchantId") Integer merchantId,
+            @RequestParam(name = "littleTagIds") String littleTagIds,
+            @RequestParam(name = "packageId") Integer packageId,
+            @RequestParam(name = "postPlatform") String postPlatform,
+            @RequestParam(name = "aiTokens", defaultValue = "200", required = false) Integer aiTokens
+    ) {
+        if (merchantId == null || StringUtils.isEmpty(littleTagIds) || packageId == null) {
+            return Result.ok("参数存在问题！");
+        }
+        try {
+            TBMerchants merchant = merchantsService.getById(merchantId);
+            if (merchant == null) {
+                return Result.error("未找到指定商家!");
+            }
+            TBPackages packages = packagesService.getById(packageId);
+            if (packages == null) {
+                return Result.error("未找到指定的套餐！");
+            }
+            List<String> littleTagIdList = Arrays.asList(littleTagIds.split(","));
+//            if (!littleTagIdList.isEmpty()) {
+//                QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
+//                tagQueryWrapper.eq("is_package_keyword", "0");  // 不是套餐标签
+//                tagQueryWrapper.eq("is_big_classification", "0");  // 不是大标签
+//                tagQueryWrapper.eq("merchant_id", merchantId);
+//                tagQueryWrapper.in("id", littleTagIdList);
+//                List<TBTag> tagListInDB = tagService.getBaseMapper().selectList(tagQueryWrapper);
+//                if (tagListInDB.size() != littleTagIdList.size()) {
+//                    return Result.error("部分选择的标签未找到！");
+//                } else {
+//                    return Result.ok(merchantsService.getAiPrompt(merchant, packages, aiTokens, postPlatform, tagListInDB));
+//                }
+//            } else {
+//                return Result.error("店铺标签未指定！");
+//            }
+            return null;
+        } catch (Exception e) {
+            log.error("generateAiPrompt: 出现错误！错误原因如下:{}", e.getMessage());
+            return Result.error("生成AI提示词出错！请联系管理员！");
+        }
+
+    }
+
 
     /**
      * 统计用户点击数据接口

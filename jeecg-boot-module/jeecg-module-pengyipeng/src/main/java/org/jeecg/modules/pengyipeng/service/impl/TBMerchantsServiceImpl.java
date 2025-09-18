@@ -1,47 +1,34 @@
 package org.jeecg.modules.pengyipeng.service.impl;
 
-import cn.binarywang.wx.miniapp.api.WxMaUserService;
 import cn.binarywang.wx.miniapp.bean.WxMaJscode2SessionResult;
-import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.net.url.UrlBuilder;
-import cn.hutool.core.util.DesensitizedUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.aliyun.oss.ServiceException;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.sun.xml.bind.v2.TODO;
 import com.xkcoding.http.HttpUtil;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.error.WxErrorException;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.shiro.SecurityUtils;
-import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.constant.CommonConstant;
 import org.jeecg.common.system.util.JwtUtil;
 import org.jeecg.common.system.vo.LoginUser;
 import org.jeecg.common.util.PasswordUtil;
 import org.jeecg.common.util.RedisUtil;
 import org.jeecg.common.util.oConvertUtils;
-import org.jeecg.config.shiro.IgnoreAuth;
 import org.jeecg.modules.base.service.BaseCommonService;
 import org.jeecg.modules.pengyipeng.dto.MerchantInfoResponseDTO;
 import org.jeecg.modules.pengyipeng.dto.MerchantLoginDto;
 import org.jeecg.modules.pengyipeng.dto.MerchantServiceInfoDTO;
-import org.jeecg.modules.pengyipeng.entity.TBAgent;
-import org.jeecg.modules.pengyipeng.entity.TBLicenses;
-import org.jeecg.modules.pengyipeng.entity.TBMerchants;
-import org.jeecg.modules.pengyipeng.entity.TBTag;
+import org.jeecg.modules.pengyipeng.entity.*;
 import org.jeecg.modules.pengyipeng.mapper.TBMerchantsMapper;
 import org.jeecg.modules.pengyipeng.service.ITBAgentService;
 import org.jeecg.modules.pengyipeng.service.ITBLicensesService;
 import org.jeecg.modules.pengyipeng.service.ITBMerchantsService;
-import org.jeecg.modules.pengyipeng.service.ITBTagService;
+//import org.jeecg.modules.pengyipeng.service.ITBTagService;
 import org.jeecg.modules.pengyipeng.utils.RandomUtil;
 import org.jeecg.modules.pengyipeng.utils.UUIDGenerator;
-import org.jeecg.modules.pengyipeng.vo.MerchantKeywordClassificationRequestVO;
-import org.jeecg.modules.pengyipeng.vo.MerchantLittleTagRequestVO;
 import org.jeecg.modules.system.entity.SysUser;
 import org.jeecg.modules.system.service.ISysUserService;
 import org.springframework.beans.BeanUtils;
@@ -55,7 +42,6 @@ import cn.binarywang.wx.miniapp.api.WxMaService;
 
 
 import javax.annotation.Resource;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -87,8 +73,8 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
     @Resource
     private BaseCommonService baseCommonService;
 
-    @Autowired
-    private ITBTagService tagService;
+//    @Autowired
+//    private ITBTagService tagService;
 
 
     public IPage<MerchantServiceInfoDTO> getMerchantServiceInfo(Page<MerchantServiceInfoDTO> page,
@@ -277,94 +263,106 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
         return token;
     }
 
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void saveTagInfoTODB(MerchantLittleTagRequestVO requestVO) {
-        List<String> keywordList = requestVO.getKeywordList();
-        if (!keywordList.isEmpty()) {
-            QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
-            tagQueryWrapper.eq("merchant_id", requestVO.getMerchantId());
-            tagQueryWrapper.eq("parent_id", requestVO.getBigTagId());
-            tagQueryWrapper.eq("is_package_keyword", "0");  // 不是套餐标签
-            tagQueryWrapper.eq("is_big_classification", "0");  // 不是大标签
+//    @Override
+//    public Map<String, Object> getAiPrompt(TBMerchants merchant, TBPackages packages, Integer aiTokens, String usePlatform, List<TBTag> littleTagList) {
+//        String prompt = "店铺信息:\n" +
+//                "    店铺名称: #{merchantName}\n" +
+//                "    店铺标签:（重点参照）\n" +
+//                "#{classifications}" +
+//                "\n" +
+//                "    用户选择套餐信息:\n" +
+//                "        套餐名称: #{packageName}\n" +
+//                "        套餐详情: #{packageDetail} （此项若无，不用参照）\n" +
+//                "        套餐价格: #{packagePrice}  （此项若无，不用参照）\n" +
+//                "\n" +
+//                "根据上面的店铺信息及套餐信息生成一个#{wenAnOrPinLun},要求如下:\n" +
+//                "    1.字数#{aiTokens}左右\n" +
+//                "    2.发布平台:#{usePlatform}\n" +
+//                "    3.不使用MarkDown格式\n" +
+//                "    4.态度积极\n" +
+//                "    5.遇到与店铺不匹配的词语可以忽略";
+//        prompt = prompt.replace("#{merchantName}", merchant.getMerchantName())
+//                .replace("#{packageName}", packages.getPackageName())
+//                .replace("#{packageDetail}", packages.getPackageDetails())
+//                .replace("#{aiTokens}", String.valueOf(aiTokens));
+//        if (packages.getPrice() == null) {
+//            prompt = prompt.replace("#{packagePrice}", "空");
+//        } else {
+//            prompt = prompt.replace("#{packagePrice}", packages.getPrice().toString());
+//        }
+//
+//        /*if (packages.getPackageDetails() == null) {
+//            prompt = prompt.replace("#{packageTagList}", "空");
+//        } else {
+//            List<String> packageTagsList = RandomUtil.processJsonList(packages.getPackageDetails());   // 随机挑选2个标签
+//            prompt = prompt.replace("#{packageTagList}", JSON.toJSONString(packageTagsList));
+//        }*/
+//
+//        String wenAnOrPinLun;
+//        if (StringUtils.isEmpty(usePlatform)) {
+//            usePlatform = "微信朋友圈  不需要表情包";
+//            wenAnOrPinLun = "文案";
+//        } else if (usePlatform.equals("小红书")) {
+//            wenAnOrPinLun = "文案";
+//        } else {
+//            wenAnOrPinLun = "评论";
+//        }
+//        prompt = prompt.replace("#{usePlatform}", usePlatform).replace("#{wenAnOrPinLun}", wenAnOrPinLun);
 
-            // 移除之前存在的TBTag
-            tagService.getBaseMapper().delete(tagQueryWrapper);
-
-            // 包装
-            List<TBTag> tagList = new ArrayList<>();
-            keywordList.forEach(keyword -> {
-                TBTag tag = new TBTag();
-                tag.setKeyword(keyword);
-                tag.setMerchantId(requestVO.getMerchantId());
-                tag.setParentId(requestVO.getBigTagId());
-                tag.setIsPackageKeyword("0");
-                tag.setIsBigClassification("0");
-                tagList.add(tag);
-            });
-            // 保存
-            tagService.saveBatch(tagList);
-        }
-
-        // 保存图片列表
-        /*List<String> picList = requestVO.getPicList();
-        if (!picList.isEmpty()) {
-            TBTag bigTag = tagService.getById(requestVO.getBigTagId());
-            bigTag.setPicList(String.join(",", picList));
-            tagService.updateById(bigTag);
-        }*/
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void saveBigTagToDB(MerchantKeywordClassificationRequestVO requestVO) {
-        QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
-        tagQueryWrapper.eq("merchant_id", requestVO.getMerchantId());
-        tagQueryWrapper.eq("is_package_keyword", "0");  // 不是套餐标签
-        tagQueryWrapper.eq("is_big_classification", "1");  // 是大标签
-        List<TBTag> tagListInDB = tagService.getBaseMapper().selectList(tagQueryWrapper);
-        Map<String, TBTag> tagMap = new HashMap<>();
-        tagListInDB.forEach(tag -> tagMap.put(tag.getKeyword(), tag));
-        //List<String> tagKeywordList = tagListInDB.stream().map(TBTag::getKeyword).toList();
-        if (tagMap.containsKey(requestVO.getBigKeywordName())) {
-            // 更新
-            TBTag tag = tagMap.get(requestVO.getBigKeywordName());
-            if (!requestVO.getPicList().isEmpty()) {
-                tag.setPicList(String.join(",", requestVO.getPicList()));
-            } else {
-                tag.setPicList("");
-            }
-            tagService.updateById(tag);
-        } else {
-            // new
-            TBTag tag = new TBTag();
-            tag.setMerchantId(requestVO.getMerchantId());
-            tag.setIsBigClassification("1");
-            tag.setIsPackageKeyword("0");
-            tag.setKeyword(requestVO.getBigKeywordName());
-            if (!requestVO.getPicList().isEmpty()) {
-                tag.setPicList(String.join(",", requestVO.getPicList()));
-            } else {
-                tag.setPicList("");
-            }
-            tagService.save(tag);
-        }
-    }
+        // 店铺分类标签及图片推送
+//        List<String> picList = new ArrayList<>();
+//        Map<String, List<String>> classificationTagMap = new HashMap<>();
+//        littleTagList.forEach(littleTag -> {
+//            List<String> tagList;
+//            if (!classificationTagMap.containsKey(littleTag.getParentId())) {
+//                tagList = new ArrayList<>();
+//                tagList.add(littleTag.getKeyword());
+//                classificationTagMap.put(littleTag.getParentId(), tagList);
+//            } else {
+//                tagList = classificationTagMap.get(littleTag.getParentId());
+//                tagList.add(littleTag.getKeyword());
+//                classificationTagMap.put(littleTag.getParentId(), tagList);
+//            }
+//        });
+//        QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
+//        tagQueryWrapper.in("id", classificationTagMap.keySet());
+//        List<TBTag> classificationTagList = tagService.getBaseMapper().selectList(tagQueryWrapper);
+//        Map<String, TBTag> classificationBigTagMap = new HashMap<>();
+//        classificationTagList.forEach(tag -> classificationBigTagMap.put(tag.getId(), tag));
+//
+//        StringBuilder classifications = new StringBuilder();
+//        for (String id : classificationTagMap.keySet()) {
+//            TBTag bigClassificationTag = classificationBigTagMap.get(id);
+//            classifications.append("\t\t").append(bigClassificationTag.getKeyword()).append(": ").append(JSON.toJSONString(classificationTagMap.get(id))).append("\n");
+//            if (!StringUtils.isEmpty(bigClassificationTag.getPicList())) {
+//                picList.addAll(Arrays.asList(bigClassificationTag.getPicList().split(",")));
+//            }
+//        }
+//        prompt = prompt.replace("#{classifications}", classifications.toString());
+//        picList = RandomUtil.randomSelectTwoElement(picList);
+//        if (!StringUtils.isEmpty(packages.getPackagePicList())) {
+//            picList.add(RandomUtil.randomSelectOneElement(Arrays.stream(packages.getPackagePicList().split(",")).toList()));
+//        }
+//        return Map.of(
+//                "aiPrompt", prompt,
+//                "picList", picList
+//        );
+//    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public MerchantLoginDto registerSysUser(String phone) {
-        LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
-        log.info("当前登录用户信息:\n{}", JSON.toJSONString(sysUser));
+        //LoginUser sysUser = (LoginUser) SecurityUtils.getSubject().getPrincipal();
+        //log.info("当前登录用户信息:\n{}", JSON.toJSONString(sysUser));
         MerchantLoginDto loginDto = new MerchantLoginDto();
         String sixRandomNumber = RandomUtil.randomNumeric6();
         loginDto.setId(UUIDGenerator.generate32BitUUID());
-        loginDto.setUsername("dianjia" + sixRandomNumber);
+        loginDto.setUsername(phone);
         loginDto.setRealname("店家" + sixRandomNumber);
         loginDto.setWorkNo(sixRandomNumber + RandomUtil.randomNumeric6() + RandomUtil.randomNumeric6());
         loginDto.setSelectedroles("1953634960707457025");  // 店家角色
         loginDto.setUserIdentity(1);
-        loginDto.setEmail("dianjia" + sixRandomNumber + "@qq.com");
+        loginDto.setEmail("dianjia" + sixRandomNumber + CommonConstant.EMAIL_DEFAULT_SUFFIX);
         loginDto.setPhone(phone);
         loginDto.setActivitiSync(1);
         String salt = oConvertUtils.randomGen(8);
@@ -382,7 +380,7 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
             SysUser user = new SysUser();
             BeanUtils.copyProperties(loginDto, user);
             user.setCreateTime(new Date());
-            user.setCreateBy(sysUser.getUsername());
+            user.setCreateBy("admin");
             sysUserService.addUserWithRole(user, loginDto.getSelectedroles());  // 店家角色
             return loginDto;
         } catch (Exception e) {

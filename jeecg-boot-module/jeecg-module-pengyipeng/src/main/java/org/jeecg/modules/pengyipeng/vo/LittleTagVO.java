@@ -14,6 +14,6 @@ import lombok.Data;
 @Data
 public class LittleTagVO {
     private String id;
-    private String keyword;
-    private String bigTagId;
+    private String tagName;
+    private String classificationMiddleId;
 }

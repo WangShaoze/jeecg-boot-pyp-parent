@@ -634,7 +634,7 @@ public interface CommonConstant {
    /**
     * 默认用户登录密码
     * */
-    String DEFAULT_PASSWORD = "";
+    String DEFAULT_PASSWORD = "@#！hne87832";
 
     /**
      * 通过手机号注册时邮箱默认后缀

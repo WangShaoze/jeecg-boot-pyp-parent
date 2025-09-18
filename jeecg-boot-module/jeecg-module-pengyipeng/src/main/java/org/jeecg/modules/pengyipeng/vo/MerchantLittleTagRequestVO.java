@@ -16,7 +16,6 @@ import java.util.List;
 @Data
 public class MerchantLittleTagRequestVO {
     private Integer merchantId;
-    private String bigTagId;
+    private String classificationMiddleId;
     private List<String> keywordList;
-    //private List<String> picList;
 }

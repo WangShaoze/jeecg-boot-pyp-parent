@@ -88,7 +88,7 @@ public class ShiroConfig {
         filterChainDefinitionMap.put("/sys/checkCaptcha", "anon"); //登录验证码接口排除
         filterChainDefinitionMap.put("/sys/smsCheckCaptcha", "anon"); //短信次数发送太多验证码排除
         filterChainDefinitionMap.put("/sys/login", "anon"); //登录接口排除
-        //filterChainDefinitionMap.put("/sys/merchant_login", "anon"); //商家登录接口排除
+        filterChainDefinitionMap.put("/sys/merchant_login", "anon"); //商家登录接口排除
         filterChainDefinitionMap.put("/sys/mLogin", "anon"); //登录接口排除
         filterChainDefinitionMap.put("/sys/logout", "anon"); //登出接口排除
         filterChainDefinitionMap.put("/sys/thirdLogin/**", "anon"); //第三方登录
@@ -107,6 +107,8 @@ public class ShiroConfig {
         filterChainDefinitionMap.put("/pengyipeng/api/merchantLogin", "anon"); //小程序登录（非静默）
         filterChainDefinitionMap.put("/pengyipeng/api/saveOpenid", "anon"); //小程序登录（静默）-保存openid
         filterChainDefinitionMap.put("/pengyipeng/api/merchantSilentLogin", "anon"); //小程序登录（静默）
+        filterChainDefinitionMap.put("/pengyipeng/api/getAppInfo", "anon"); // 用户写协议和隐私政策
+        filterChainDefinitionMap.put("/pengyipeng/api/getMerchantEntranceMainPng", "anon"); // 获取小程序的入口主图
 
 
         //filterChainDefinitionMap.put("/sys/common/view/**", "anon");//图片预览不限制token

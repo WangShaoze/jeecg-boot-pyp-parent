@@ -75,7 +75,7 @@ public class AppController {
     @Autowired
     private ITBAppInfoService appInfoService;
     @Autowired
-    private ITBTagService tagService;
+    private ITBMerchantLittleTagService merchantLittleTagService;
     @Autowired
     private ITBClassificationOptionService classificationOptionService;
     @Autowired
@@ -89,7 +89,7 @@ public class AppController {
     @Operation(summary = "App接口-小程序-（开启|关闭）商家的指定分类")
     @GetMapping(value = "openMerchantClassification")
     @Transactional(rollbackFor = Exception.class)
-    public Result<String> openMerchantClassification(
+    public Result<TBClassificationMerchantMiddle> openMerchantClassification(
             @RequestParam(name = "merchantId") Integer merchantId,
             @RequestParam(name = "classificationOptionId") String classificationOptionId,
             @RequestParam(name = "isOpen", defaultValue = "0", required = true) Integer isOpen
@@ -117,8 +117,9 @@ public class AppController {
         // 在中间表中创建关联记录
         QueryWrapper<TBClassificationMerchantMiddle> middleQueryWrapper = new QueryWrapper<>();
         middleQueryWrapper.eq("merchant_id", merchantId);
-        middleQueryWrapper.eq("classification_option_id", merchantId);
+        middleQueryWrapper.eq("classification_option_id", classificationOptionId);
         TBClassificationMerchantMiddle classificationMerchantMiddle = classificationMerchantMiddleService.getBaseMapper().selectOne(middleQueryWrapper);
+        // 校验中间表中是否存在这个商家对应该分类的记录
         if (classificationMerchantMiddle == null) {
             // 找不到对应的 中间表记录 ==> 新建
             classificationMerchantMiddle = new TBClassificationMerchantMiddle();
@@ -127,13 +128,7 @@ public class AppController {
         classificationMerchantMiddle.setIsOpen(isOpen.toString());
         classificationMerchantMiddle.setClassificationOptionId(classificationOptionId);
         classificationMerchantMiddleService.saveOrUpdate(classificationMerchantMiddle);
-        // 在标签表中创建分类
-        MerchantKeywordClassificationRequestVO requestVO = new MerchantKeywordClassificationRequestVO();
-        requestVO.setMerchantId(merchantId);
-        requestVO.setBigKeywordName(classificationOption.getClassificationChineseName());
-        requestVO.setPicList(new ArrayList<>());
-        merchantsService.saveBigTagToDB(requestVO);
-        return Result.ok("开启成功!");
+        return Result.ok(classificationMerchantMiddle);
     }
 
 
@@ -149,17 +144,21 @@ public class AppController {
 
 
     /**
-     * 设置店铺关键词及图片
+     * 设置店铺小标签
      */
     @AutoLog(value = "App接口-小程序-设置店铺小标签")
     @Operation(summary = "App接口-小程序-设置店铺小标签")
     @RequestMapping(value = "saveLittleTag", method = {RequestMethod.POST, RequestMethod.GET})
-    public Result<String> saveLittleTag(@RequestBody MerchantLittleTagRequestVO requestVO) {
-        if (requestVO.getMerchantId() == null) {
-            return Result.error("出入参数中没有商家ID");
+    public Result<List<String>> saveLittleTag(@RequestBody MerchantLittleTagRequestVO requestVO) {
+        List<String> keywordList = requestVO.getKeywordList();
+        if (keywordList == null) {
+            return Result.error("参入有误！标签列表不存在！");
         }
-        if (StringUtils.isEmpty(requestVO.getBigTagId())) {
-            return Result.error("没有大分类标签！");
+        if (requestVO.getMerchantId() == null) {
+            return Result.error("参数中没有商家ID");
+        }
+        if (StringUtils.isEmpty(requestVO.getClassificationMiddleId())) {
+            return Result.error("参数中没有分类！");
         }
         QueryWrapper<TBMerchants> merchantsQueryWrapper = new QueryWrapper<>();
         merchantsQueryWrapper.eq("id", requestVO.getMerchantId());
@@ -167,9 +166,31 @@ public class AppController {
         if (count != 1) {
             return Result.error("找不到指定商家!");
         }
+        // 校验分类是否正确
+        QueryWrapper<TBClassificationMerchantMiddle> middleQueryWrapper = new QueryWrapper<>();
+        middleQueryWrapper.eq("id", requestVO.getClassificationMiddleId());
+        count = classificationMerchantMiddleService.getBaseMapper().selectCount(middleQueryWrapper);
+        if (count != 1) {
+            return Result.error("未找到指定的分类!");
+        }
         try {
-            merchantsService.saveTagInfoTODB(requestVO);
-            return Result.ok("数据保存成功！");
+            QueryWrapper<TBMerchantLittleTag> merchantLittleTagQueryWrapper = new QueryWrapper<>();
+            merchantLittleTagQueryWrapper.eq("merchant_id", requestVO.getMerchantId());
+            merchantLittleTagQueryWrapper.eq("classification_middle_id", requestVO.getClassificationMiddleId());
+            // 清空所有的已经存在的小标签
+            merchantLittleTagService.remove(merchantLittleTagQueryWrapper);
+            List<TBMerchantLittleTag> tagList = new ArrayList<>();
+            if (!keywordList.isEmpty()) {
+                keywordList.forEach(keyword -> {
+                    TBMerchantLittleTag tag = new TBMerchantLittleTag();
+                    tag.setTagName(keyword);
+                    tag.setMerchantId(requestVO.getMerchantId().toString());
+                    tag.setClassificationMiddleId(requestVO.getClassificationMiddleId());
+                    tagList.add(tag);
+                });
+                merchantLittleTagService.saveBatch(tagList);
+            }
+            return Result.ok(keywordList);
         } catch (Exception e) {
             log.error("saveKeywordAndPic:出现错误！错误原因:{}", e.getMessage());
             return Result.error("数据保存失败！请联系管理员");
@@ -177,13 +198,13 @@ public class AppController {
     }
 
     /**
-     * 设置店铺关键词及图片
+     * 获取店铺小标签
      */
     @AutoLog(value = "App接口-小程序-获取店铺小标签")
     @Operation(summary = "App接口-小程序-获取店铺小标签")
     @GetMapping(value = "getLittleTag")
-    public Result<List<LittleTagVO>> getLittleTag(@RequestParam(name = "merchantId") Integer merchantId, @RequestParam(name = "bigTagId") String bigTagId) {
-        if (StringUtils.isEmpty(bigTagId) || merchantId == null) {
+    public Result<List<LittleTagVO>> getLittleTag(@RequestParam(name = "merchantId") Integer merchantId, @RequestParam(name = "classificationMiddleId") String classificationMiddleId) {
+        if (StringUtils.isEmpty(classificationMiddleId) || merchantId == null) {
             return Result.error("请正确输入参数！");
         }
         QueryWrapper<TBMerchants> merchantsQueryWrapper = new QueryWrapper<>();
@@ -192,43 +213,41 @@ public class AppController {
         if (count != 1) {
             return Result.error("找不到指定商家!");
         }
-        QueryWrapper<TBTag> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("merchant_id", merchantId);
-        queryWrapper.eq("is_package_keyword", "0");
-        queryWrapper.eq("is_big_classification", "1");
-        List<TBTag> classificationList = tagService.getBaseMapper().selectList(queryWrapper);
-        List<String> classificationIdList = classificationList.stream().map(TBTag::getId).toList();
-        if (!classificationIdList.contains(bigTagId)) {
-            return Result.error("找不到这个分类!");
+        // 校验分类是否正确
+        QueryWrapper<TBClassificationMerchantMiddle> middleQueryWrapper = new QueryWrapper<>();
+        middleQueryWrapper.eq("id", classificationMiddleId);
+        count = classificationMerchantMiddleService.getBaseMapper().selectCount(middleQueryWrapper);
+        if (count != 1) {
+            return Result.error("未找到指定的分类!");
         }
 
-        queryWrapper.clear();
+        // 查询
+        QueryWrapper<TBMerchantLittleTag> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("merchant_id", merchantId);
-        queryWrapper.eq("parent_id", bigTagId);
-        List<TBTag> littleTagList = tagService.getBaseMapper().selectList(queryWrapper);
-        List<LittleTagVO> voList = new ArrayList<>();
-        if (!littleTagList.isEmpty()) {
-            littleTagList.forEach(littleTag -> {
-                LittleTagVO vo = new LittleTagVO();
-                vo.setId(littleTag.getId());
-                vo.setBigTagId(littleTag.getParentId());
-                vo.setKeyword(littleTag.getKeyword());
-                voList.add(vo);
-            });
-        }
-        return Result.ok(voList);
+        queryWrapper.eq("classification_middle_id", classificationMiddleId);
+        List<TBMerchantLittleTag> tagList = merchantLittleTagService.getBaseMapper().selectList(queryWrapper);
+        List<LittleTagVO> littleTagVOList = new ArrayList<>();
+        tagList.forEach(tag -> {
+            LittleTagVO littleTagVO = new LittleTagVO();
+            littleTagVO.setId(tag.getId());
+            littleTagVO.setTagName(tag.getTagName());
+            littleTagVO.setClassificationMiddleId(tag.getClassificationMiddleId());
+            littleTagVOList.add(littleTagVO);
+        });
+        return Result.ok(littleTagVOList);
 
     }
 
     /**
-     * 保存店铺关键词分类
+     * 保存店铺标签分类
      */
-    @AutoLog(value = "App接口-小程序-保存店铺关键词分类")
-    @Operation(summary = "App接口-小程序-保存店铺关键词分类")
-    @RequestMapping(value = "saveKeywordClassification", method = {RequestMethod.POST, RequestMethod.GET})
-    public Result<MerchantKeywordClassificationVO> saveKeywordClassification(@RequestBody MerchantKeywordClassificationRequestVO requestVO) {
+    @AutoLog(value = "App接口-小程序-保存店铺标签分类")
+    @Operation(summary = "App接口-小程序-保存店铺标签分类")
+    @RequestMapping(value = "saveTagClassification", method = {RequestMethod.POST, RequestMethod.GET})
+    public Result<TBClassificationMerchantMiddle> saveTagClassification(@RequestBody MerchantTagClassificationRequestVO requestVO) {
+
         if (requestVO.getMerchantId() == null) {
-            return Result.error("出入参数中没有商家ID");
+            return Result.error("参数中没有商家ID");
         }
         QueryWrapper<TBMerchants> merchantsQueryWrapper = new QueryWrapper<>();
         merchantsQueryWrapper.eq("id", requestVO.getMerchantId());
@@ -236,26 +255,57 @@ public class AppController {
         if (count != 1) {
             return Result.error("找不到指定商家!");
         }
-        if (StringUtils.isEmpty(requestVO.getBigKeywordName())) {
-            return Result.error("大标签不可以为空！");
+
+        if (StringUtils.isEmpty(requestVO.getClassificationId())) {
+            return Result.error("分类不可以为空！");
+        }
+        TBClassificationOption option = classificationOptionService.getById(requestVO.getClassificationId());
+        if (option == null) {
+            return Result.error("未找到指定的分类！");
         }
         try {
-            merchantsService.saveBigTagToDB(requestVO);
-            return Result.ok("数据保存成功！");
+            QueryWrapper<TBClassificationMerchantMiddle> middleQueryWrapper = new QueryWrapper<>();
+            middleQueryWrapper.eq("merchant_id", requestVO.getMerchantId());
+            middleQueryWrapper.eq("classification_option_id", requestVO.getClassificationId());
+            TBClassificationMerchantMiddle classificationMerchantMiddle = classificationMerchantMiddleService.getBaseMapper().selectOne(middleQueryWrapper);
+            if (classificationMerchantMiddle != null) {
+                // 更新
+                if (!requestVO.getPicList().isEmpty()) {
+                    classificationMerchantMiddle.setPicList(String.join(",", requestVO.getPicList()));
+                } else {
+                    classificationMerchantMiddle.setPicList("");
+                }
+            } else {
+                // new
+                classificationMerchantMiddle = new TBClassificationMerchantMiddle();
+                classificationMerchantMiddle.setMerchantId(requestVO.getMerchantId());
+                classificationMerchantMiddle.setClassificationOptionId(requestVO.getClassificationId());
+                classificationMerchantMiddle.setIsOpen("1");
+                if (!requestVO.getPicList().isEmpty()) {
+                    classificationMerchantMiddle.setPicList(String.join(",", requestVO.getPicList()));
+                } else {
+                    classificationMerchantMiddle.setPicList("");
+                }
+            }
+            classificationMerchantMiddleService.saveOrUpdate(classificationMerchantMiddle);
+            return Result.ok(classificationMerchantMiddle);
         } catch (Exception e) {
-            log.error("saveKeywordClassification:出现错误！错误原因:{}", e.getMessage());
+            log.error("saveTagClassification:出现错误！错误原因:{}", e.getMessage());
             return Result.error("数据保存失败！请联系管理员");
         }
     }
 
 
     /**
-     * 店铺关键词分类
+     * 获取店铺指定分类的图片列表
      */
-    @AutoLog(value = "App接口-小程序-获取店铺关键词分类")
-    @Operation(summary = "App接口-小程序-获取店铺关键词分类")
-    @GetMapping(value = "keywordClassification")
-    public Result<MerchantKeywordClassificationVO> getKeywordClassification(@RequestParam Integer merchantId) {
+    @AutoLog(value = "App接口-小程序-获取店铺指定分类的图片列表")
+    @Operation(summary = "App接口-小程序-获取店铺指定分类的图片列表")
+    @GetMapping(value = "getMerchantClassificationPicList")
+    public Result<TagClassificationVO> getMerchantClassificationPicList(
+            @RequestParam Integer merchantId,
+            @RequestParam String classificationOptionId
+    ) {
         if (merchantId == null) {
             return Result.error("请正确输出参数！");
         }
@@ -265,42 +315,19 @@ public class AppController {
         if (count != 1) {
             return Result.error("找不到指定商家!");
         }
-        MerchantKeywordClassificationVO vo = new MerchantKeywordClassificationVO();
-        vo.setMerchantId(merchantId);
-        List<KeywordClassificationVO> voList = new ArrayList<>();
-        QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
-        tagQueryWrapper.eq("merchant_id", merchantId);
-        tagQueryWrapper.eq("is_package_keyword", "0");  // 不是套餐标签
-        tagQueryWrapper.eq("is_big_classification", "1");  // 是大标签
-        List<TBTag> tbTags = tagService.getBaseMapper().selectList(tagQueryWrapper);
-        tbTags.forEach(tag -> {
-            KeywordClassificationVO keywordClassificationVO = new KeywordClassificationVO();
-            keywordClassificationVO.setId(tag.getId());
-            keywordClassificationVO.setBigKeywordName(tag.getKeyword());
-            if (!StringUtils.isEmpty(tag.getPicList())) {
-                keywordClassificationVO.setPicList(Arrays.asList(tag.getPicList().split(",")));   // 设置 图片列表
-            } else {
-                keywordClassificationVO.setPicList(new ArrayList<>());   // 设置 图片列表
-            }
-            voList.add(keywordClassificationVO);
-        });
-
         // 过滤掉关闭的大分类
         QueryWrapper<TBClassificationMerchantMiddle> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("merchant_id", merchantId);  // 商家ID
-        queryWrapper.eq("is_open", "1");   // 开启状态
-        List<TBClassificationMerchantMiddle> mList = classificationMerchantMiddleService.getBaseMapper().selectList(queryWrapper);
-        QueryWrapper<TBClassificationOption> optionQueryWrapper = new QueryWrapper<>();
-        optionQueryWrapper.in("id", mList.stream().map(TBClassificationMerchantMiddle::getClassificationOptionId).toList());
-        List<TBClassificationOption> openList = classificationOptionService.getBaseMapper().selectList(optionQueryWrapper);
-        List<String> classificationNameList = openList.stream().map(TBClassificationOption::getClassificationChineseName).toList();
-        vo.setKeywordClassification(voList.stream().filter(w -> classificationNameList.contains(w.getBigKeywordName())).toList());
-        return Result.ok(vo);
+        //queryWrapper.eq("is_open", "1");   // 开启状态
+        queryWrapper.eq("classification_option_id", classificationOptionId);   // 开启状态
+        TBClassificationMerchantMiddle classificationMerchantMiddle = classificationMerchantMiddleService.getBaseMapper().selectOne(queryWrapper);
+        return Result.ok(TagClassificationVO.create(classificationMerchantMiddle));
     }
 
 
     /**
      * 获取商家端入口主图
+     * :: 接口不过滤
      */
     @AutoLog(value = "App接口-小程序-获取商家端入口主图")
     @Operation(summary = "App接口-小程序-获取商家端入口主图")
@@ -322,10 +349,11 @@ public class AppController {
 
     /**
      * 获取 用户协议和隐私政策
+     * :: 接口不过滤
      */
     @AutoLog(value = "App接口-小程序-用户协议和隐私政策")
     @Operation(summary = "App接口-小程序-用户协议和隐私政策")
-    @RequestMapping(method = {RequestMethod.GET, RequestMethod.POST}, produces = MediaType.TEXT_MARKDOWN_VALUE, value = "/getAppInfo")
+    @RequestMapping(method = {RequestMethod.GET, RequestMethod.POST}, value = "/getAppInfo")
     public Result<TBAppInfo> getAppInfo(@RequestParam(name = "flagKey", required = false) String flagKey) {
         Integer defaultAppInfoId = -1518268415;
         if (StringUtils.isEmpty(flagKey)) {

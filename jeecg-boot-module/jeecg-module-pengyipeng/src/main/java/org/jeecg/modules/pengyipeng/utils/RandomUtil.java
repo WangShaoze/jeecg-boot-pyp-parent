@@ -9,7 +9,12 @@ package org.jeecg.modules.pengyipeng.utils;
  * @Version: v1.0
  */
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import org.jetbrains.annotations.NotNull;
+
 import java.security.SecureRandom;
+import java.util.List;
 
 public final class RandomUtil {
 
@@ -51,6 +56,62 @@ public final class RandomUtil {
         }
         return sb.toString();
     }
+
+
+    public static List<String> processJsonList(String jsonStr) {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+
+        try {
+            // 将JSON字符串转换为List<String>
+            List<String> list = objectMapper.readValue(jsonStr, new TypeReference<List<String>>() {
+            });
+
+            return randomSelectTwoElement(list);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return List.of(); // 发生异常时返回空列表
+        }
+    }
+
+    public static List<String> randomSelectTwoElement(List<String> list) {
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        SecureRandom random = new SecureRandom();
+        // 如果列表长度大于2，随机选择2个元素
+        if (list.size() > 2) {
+            // 生成两个不同的随机索引
+            int index1 = random.nextInt(list.size());
+            int index2;
+            do {
+                index2 = random.nextInt(list.size());
+            } while (index2 == index1);
+
+            // 返回包含两个随机元素的新列表
+            return List.of(list.get(index1), list.get(index2));
+        } else {
+            // 长度小于等于2，直接返回原列表
+            return list;
+        }
+    }
+
+    public static String randomSelectOneElement(List<String> list) {
+        if (list == null || list.isEmpty()) {
+            return "";
+        }
+        SecureRandom random = new SecureRandom();
+        if (list.size() > 1) {
+            // 生成两个不同的随机索引
+            int index = random.nextInt(list.size());
+            // 返回包含两个随机元素的新列表
+            return list.get(index);
+        } else {
+            // 长度小于等于2，直接返回原列表
+            return list.get(0);
+        }
+    }
+
 
     /* ---------------- 示例调用 ---------------- */
     public static void main(String[] args) {

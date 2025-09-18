@@ -1,6 +1,5 @@
 package org.jeecg.modules.pengyipeng.service;
 
-import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.jeecg.modules.pengyipeng.dto.MerchantInfoResponseDTO;
@@ -9,10 +8,8 @@ import org.jeecg.modules.pengyipeng.dto.MerchantServiceInfoDTO;
 import org.jeecg.modules.pengyipeng.entity.TBAgent;
 import org.jeecg.modules.pengyipeng.entity.TBMerchants;
 import com.baomidou.mybatisplus.extension.service.IService;
-import org.jeecg.modules.pengyipeng.mapper.TBMerchantsMapper;
-import org.jeecg.modules.pengyipeng.vo.MerchantKeywordClassificationRequestVO;
-import org.jeecg.modules.pengyipeng.vo.MerchantLittleTagRequestVO;
-import org.springframework.beans.factory.annotation.Autowired;
+//import org.jeecg.modules.pengyipeng.entity.TBTag;
+
 
 /**
  * @Description: 店铺表
@@ -46,9 +43,11 @@ public interface ITBMerchantsService extends IService<TBMerchants> {
 
     String getXAccessToken(String sysUid);
 
-    void saveTagInfoTODB(MerchantLittleTagRequestVO requestVO);
+//    void saveTagInfoTODB(MerchantLittleTagRequestVO requestVO);
+//
+//    void saveBigTagToDB(MerchantKeywordClassificationRequestVO requestVO);
 
-    void saveBigTagToDB(MerchantKeywordClassificationRequestVO requestVO);
+//    Map<String, Object> getAiPrompt(TBMerchants merchant, TBPackages packages, Integer aiTokens, String usePlatform, List<TBTag> littleTagList);
 
 
 }

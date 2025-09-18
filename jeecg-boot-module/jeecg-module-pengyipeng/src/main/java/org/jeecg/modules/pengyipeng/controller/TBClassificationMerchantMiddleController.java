@@ -42,7 +42,7 @@ import org.apache.shiro.authz.annotation.RequiresPermissions;
  /**
  * @Description: 标签分类中间表
  * @Author: jeecg-boot
- * @Date:   2025-09-16
+ * @Date:   2025-09-18
  * @Version: V1.0
  */
 @Tag(name="标签分类中间表")

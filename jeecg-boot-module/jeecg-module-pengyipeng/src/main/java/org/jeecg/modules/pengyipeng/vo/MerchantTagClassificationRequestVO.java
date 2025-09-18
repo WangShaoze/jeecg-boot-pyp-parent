@@ -14,7 +14,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class MerchantKeywordClassificationRequestVO {
+public class MerchantTagClassificationRequestVO {
     private Integer merchantId;
     private String classificationId;
     private List<String> picList;

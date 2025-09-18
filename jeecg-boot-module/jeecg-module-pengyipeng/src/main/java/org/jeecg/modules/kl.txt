@@ -1,1 +1,29 @@
+生成AI提示词的逻辑
+    1.基础校验要使用 商家id ===> 传入 [merchantId]
+    2.用户选择的【店铺分类下的小标签】+【店铺该分类对应的2张图片】  ===> 传入小标签的id列表使用逗号隔开 [littleTagIds]
+    3.用户选择的【套餐】 ==> 从套餐中获取套餐的【描述信息】和【关键词】并从套餐中随机选择1张【图片】    ===>  传入套餐的id [packageId]
+    4.小红书平台的文案字数可能较多1000字左右, 这个参数默认200字模拟普通的评论 ===> 传入字数 [aiTokens]
+
+返回值:
+    aiPrompt: string
+    picList: [string,string,string]
+
+
+
+店铺信息:
+    店铺名称: #{merchantName}
+    店铺标签:（重点参照）
+        #{classifications}
+
+    用户选择套餐信息:
+        套餐名称: #{packageName}
+        套餐详情: #{packageDetail} （此项若无，不用参照）
+        套餐价格: #{packagePrice}  （此项若无，不用参照）
+
+根据上面的店铺信息及套餐信息生成一个#{WenAnOrPinLun},要求如下:
+    1.字数#{aiTokens}左右
+    2.发布平台:#{usePlatform}
+    3.不使用MarkDown格式
+    4.态度积极
+    5.遇到与店铺不匹配的词语可以忽略
 

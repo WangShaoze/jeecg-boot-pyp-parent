@@ -22,7 +22,7 @@ import lombok.experimental.Accessors;
 /**
  * @Description: 标签分类中间表
  * @Author: jeecg-boot
- * @Date:   2025-09-16
+ * @Date:   2025-09-18
  * @Version: V1.0
  */
 @Data
@@ -33,9 +33,9 @@ import lombok.experimental.Accessors;
 public class TBClassificationMerchantMiddle implements Serializable {
     private static final long serialVersionUID = 1L;
 
-	/**主键*/
+	/**中间表ID*/
 	@TableId(type = IdType.ASSIGN_ID)
-    @Schema(description = "主键")
+    @Schema(description = "中间表ID")
     private java.lang.String id;
 	/**商家表ID*/
 	@Excel(name = "商家表ID", width = 15)
@@ -49,4 +49,8 @@ public class TBClassificationMerchantMiddle implements Serializable {
 	@Excel(name = "是否开启", width = 15)
     @Schema(description = "是否开启")
     private java.lang.String isOpen;
+	/**图片列表*/
+	@Excel(name = "图片列表", width = 15)
+    @Schema(description = "图片列表")
+    private java.lang.String picList;
 }
