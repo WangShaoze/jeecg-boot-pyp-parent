@@ -20,6 +20,7 @@ import org.jeecg.modules.pengyipeng.dto.*;
 import org.jeecg.modules.pengyipeng.entity.*;
 import org.jeecg.modules.pengyipeng.service.*;
 import org.jeecg.modules.pengyipeng.utils.HttpLinkMatcherUtil;
+import org.jeecg.modules.pengyipeng.vo.LittleTagVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -57,9 +58,8 @@ public class APPUserController {
 
     @Autowired
     private ITBClickOperationStatService tBClickOperationStatService;
-
     @Autowired
-    private ITBClassificationOptionService classificationOptionService;
+    private ITBMerchantLittleTagService littleTagService;
     @Autowired
     private ITBClassificationMerchantMiddleService classificationMerchantMiddleService;
 
@@ -76,23 +76,23 @@ public class APPUserController {
      * picList: [string,string,string]
      *
      * @param merchantId   商家ID
-     * @param littleTagIds 小标签的Id列表
+     * @param tagIdList    小标签的Id列表
      * @param packageId    套餐ID
      * @param postPlatform 发布平台
      * @param aiTokens     AI生成字数
      * @return Map<String, Object>
      */
-    @AutoLog(value = "App接口-小程序-生成AI提示词")
-    @Operation(summary = "App接口-小程序-生成AI提示词")
+    @AutoLog(value = "UserApp接口-生成AI提示词")
+    @Operation(summary = "UserApp接口-生成AI提示词")
     @GetMapping(value = "generateAiPrompt")
     public Result<Map<String, Object>> generateAiPrompt(
             @RequestParam(name = "merchantId") Integer merchantId,
-            @RequestParam(name = "littleTagIds") String littleTagIds,
+            @RequestParam(name = "tagIdList") String tagIdList,
             @RequestParam(name = "packageId") Integer packageId,
             @RequestParam(name = "postPlatform") String postPlatform,
             @RequestParam(name = "aiTokens", defaultValue = "200", required = false) Integer aiTokens
     ) {
-        if (merchantId == null || StringUtils.isEmpty(littleTagIds) || packageId == null) {
+        if (merchantId == null || StringUtils.isEmpty(tagIdList) || packageId == null) {
             return Result.ok("参数存在问题！");
         }
         try {
@@ -104,28 +104,100 @@ public class APPUserController {
             if (packages == null) {
                 return Result.error("未找到指定的套餐！");
             }
-            List<String> littleTagIdList = Arrays.asList(littleTagIds.split(","));
-//            if (!littleTagIdList.isEmpty()) {
-//                QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
-//                tagQueryWrapper.eq("is_package_keyword", "0");  // 不是套餐标签
-//                tagQueryWrapper.eq("is_big_classification", "0");  // 不是大标签
-//                tagQueryWrapper.eq("merchant_id", merchantId);
-//                tagQueryWrapper.in("id", littleTagIdList);
-//                List<TBTag> tagListInDB = tagService.getBaseMapper().selectList(tagQueryWrapper);
-//                if (tagListInDB.size() != littleTagIdList.size()) {
-//                    return Result.error("部分选择的标签未找到！");
-//                } else {
-//                    return Result.ok(merchantsService.getAiPrompt(merchant, packages, aiTokens, postPlatform, tagListInDB));
-//                }
-//            } else {
-//                return Result.error("店铺标签未指定！");
-//            }
-            return null;
+            List<String> littleTagIdList = Arrays.asList(tagIdList.split(","));
+            if (!littleTagIdList.isEmpty()) {
+                QueryWrapper<TBMerchantLittleTag> tagQueryWrapper = new QueryWrapper<>();
+                tagQueryWrapper.eq("merchant_id", merchantId);
+                tagQueryWrapper.in("id", littleTagIdList);
+                List<TBMerchantLittleTag> tagListInDB = littleTagService.getBaseMapper().selectList(tagQueryWrapper);
+                if (tagListInDB.size() != littleTagIdList.size()) {
+                    return Result.error("部分选择的标签未找到！");
+                } else {
+                    return Result.ok(merchantsService.getAiPrompt(merchant, packages, aiTokens, postPlatform, tagListInDB));
+                }
+            } else {
+                return Result.error("店铺标签未指定！");
+            }
         } catch (Exception e) {
             log.error("generateAiPrompt: 出现错误！错误原因如下:{}", e.getMessage());
             return Result.error("生成AI提示词出错！请联系管理员！");
         }
 
+    }
+
+
+    @AutoLog(value = "UserApp接口-换一批")
+    @Operation(summary = "UserApp接口-换一批")
+    @GetMapping(value = "changePicList")
+    public Result<List<String>> changePicList(
+            @RequestParam(name = "merchantId") Integer merchantId,
+            @RequestParam(name = "tagIdList") String tagIdList,
+            @RequestParam(name = "packageId") Integer packageId
+    ) {
+        if (merchantId == null || StringUtils.isEmpty(tagIdList) || packageId == null) {
+            return Result.ok("参数存在问题！");
+        }
+        TBMerchants merchant = merchantsService.getById(merchantId);
+        if (merchant == null) {
+            return Result.error("未找到指定商家!");
+        }
+        TBPackages packages = packagesService.getById(packageId);
+        if (packages == null) {
+            return Result.error("未找到指定的套餐！");
+        }
+        try {
+            List<String> littleTagIdList = Arrays.asList(tagIdList.split(","));
+            if (!littleTagIdList.isEmpty()) {
+                QueryWrapper<TBMerchantLittleTag> tagQueryWrapper = new QueryWrapper<>();
+                tagQueryWrapper.eq("merchant_id", merchantId);
+                tagQueryWrapper.in("id", littleTagIdList);
+                List<TBMerchantLittleTag> tagListInDB = littleTagService.getBaseMapper().selectList(tagQueryWrapper);
+                if (tagListInDB.size() != littleTagIdList.size()) {
+                    return Result.error("部分选择的标签未找到！");
+                } else {
+                    return Result.ok(merchantsService.randomSelectedPic(merchant, packages, tagListInDB));
+                }
+            } else {
+                return Result.error("店铺标签未指定！");
+            }
+        } catch (Exception e) {
+            log.error("changePicList:出错！错误原因:{}", e.getMessage());
+            return Result.error("出现错误！请联系管理员！");
+        }
+    }
+
+
+    @AutoLog(value = "UserApp接口-获取店铺标签列表")
+    @Operation(summary = "UserApp接口-获取店铺标签列表")
+    @GetMapping(value = "getAllTagList")
+    public Result<List<LittleTagVO>> getAllTagList(
+            @RequestParam(name = "merchantId") Integer merchantId
+    ) {
+        if (merchantId == null) {
+            return Result.error("请正确传入参数！");
+        }
+        TBMerchants merchant = merchantsService.getById(merchantId);
+        if (merchant == null) {
+            return Result.error("该商家不存在！");
+        }
+        try {
+            // 1.获取已经开启的分类
+            QueryWrapper<TBClassificationMerchantMiddle> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("merchant_id", merchantId);
+            queryWrapper.eq("is_open", "1");
+            List<TBClassificationMerchantMiddle> classificationMerchantMiddleList = classificationMerchantMiddleService.getBaseMapper().selectList(queryWrapper);
+            List<String> classificationIdList = classificationMerchantMiddleList.stream().map(TBClassificationMerchantMiddle::getId).toList();
+            // 2.通过分类和merchantId获取标签列表
+            QueryWrapper<TBMerchantLittleTag> littleTagQueryWrapper = new QueryWrapper<>();
+            littleTagQueryWrapper.eq("merchant_id", merchantId);
+            littleTagQueryWrapper.in("classification_middle_id", classificationIdList);
+            littleTagQueryWrapper.orderByDesc("create_time");
+            List<TBMerchantLittleTag> merchantLittleTagList = littleTagService.getBaseMapper().selectList(littleTagQueryWrapper);
+            return Result.ok(LittleTagVO.create(merchantLittleTagList));
+        } catch (Exception e) {
+            log.error("getAllTagList:出错！错误原因:{}", e.getMessage());
+            return Result.error("出现错误！请联系管理员！");
+        }
     }
 
 

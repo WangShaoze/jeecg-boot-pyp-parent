@@ -18,14 +18,13 @@ import org.jeecg.common.util.PasswordUtil;
 import org.jeecg.common.util.RedisUtil;
 import org.jeecg.common.util.oConvertUtils;
 import org.jeecg.modules.base.service.BaseCommonService;
+import org.jeecg.modules.pengyipeng.dto.ClassificationDTO;
 import org.jeecg.modules.pengyipeng.dto.MerchantInfoResponseDTO;
 import org.jeecg.modules.pengyipeng.dto.MerchantLoginDto;
 import org.jeecg.modules.pengyipeng.dto.MerchantServiceInfoDTO;
 import org.jeecg.modules.pengyipeng.entity.*;
 import org.jeecg.modules.pengyipeng.mapper.TBMerchantsMapper;
-import org.jeecg.modules.pengyipeng.service.ITBAgentService;
-import org.jeecg.modules.pengyipeng.service.ITBLicensesService;
-import org.jeecg.modules.pengyipeng.service.ITBMerchantsService;
+import org.jeecg.modules.pengyipeng.service.*;
 //import org.jeecg.modules.pengyipeng.service.ITBTagService;
 import org.jeecg.modules.pengyipeng.utils.RandomUtil;
 import org.jeecg.modules.pengyipeng.utils.UUIDGenerator;
@@ -73,8 +72,8 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
     @Resource
     private BaseCommonService baseCommonService;
 
-//    @Autowired
-//    private ITBTagService tagService;
+    @Autowired
+    private ITBClassificationMerchantMiddleService classificationMerchantMiddleService;
 
 
     public IPage<MerchantServiceInfoDTO> getMerchantServiceInfo(Page<MerchantServiceInfoDTO> page,
@@ -153,7 +152,7 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
         updateById(tbMerchants);
 
         // 需要 更新代理商信息 ===> 到期商家数量 && 即将到期商家数量
-        // TODO  这里可以选择不做操作，使用定时任务去更新
+        //   这里可以选择不做操作，使用定时任务去更新
         /*tbAgent.setLicenseExpired(null);
         tbAgent.setLicenseUpcomingExpired(null);
         agentService.updateById(tbAgent);*/
@@ -263,91 +262,129 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
         return token;
     }
 
-//    @Override
-//    public Map<String, Object> getAiPrompt(TBMerchants merchant, TBPackages packages, Integer aiTokens, String usePlatform, List<TBTag> littleTagList) {
-//        String prompt = "店铺信息:\n" +
-//                "    店铺名称: #{merchantName}\n" +
-//                "    店铺标签:（重点参照）\n" +
-//                "#{classifications}" +
-//                "\n" +
-//                "    用户选择套餐信息:\n" +
-//                "        套餐名称: #{packageName}\n" +
-//                "        套餐详情: #{packageDetail} （此项若无，不用参照）\n" +
-//                "        套餐价格: #{packagePrice}  （此项若无，不用参照）\n" +
-//                "\n" +
-//                "根据上面的店铺信息及套餐信息生成一个#{wenAnOrPinLun},要求如下:\n" +
-//                "    1.字数#{aiTokens}左右\n" +
-//                "    2.发布平台:#{usePlatform}\n" +
-//                "    3.不使用MarkDown格式\n" +
-//                "    4.态度积极\n" +
-//                "    5.遇到与店铺不匹配的词语可以忽略";
-//        prompt = prompt.replace("#{merchantName}", merchant.getMerchantName())
-//                .replace("#{packageName}", packages.getPackageName())
-//                .replace("#{packageDetail}", packages.getPackageDetails())
-//                .replace("#{aiTokens}", String.valueOf(aiTokens));
-//        if (packages.getPrice() == null) {
-//            prompt = prompt.replace("#{packagePrice}", "空");
-//        } else {
-//            prompt = prompt.replace("#{packagePrice}", packages.getPrice().toString());
-//        }
-//
-//        /*if (packages.getPackageDetails() == null) {
-//            prompt = prompt.replace("#{packageTagList}", "空");
-//        } else {
-//            List<String> packageTagsList = RandomUtil.processJsonList(packages.getPackageDetails());   // 随机挑选2个标签
-//            prompt = prompt.replace("#{packageTagList}", JSON.toJSONString(packageTagsList));
-//        }*/
-//
-//        String wenAnOrPinLun;
-//        if (StringUtils.isEmpty(usePlatform)) {
-//            usePlatform = "微信朋友圈  不需要表情包";
-//            wenAnOrPinLun = "文案";
-//        } else if (usePlatform.equals("小红书")) {
-//            wenAnOrPinLun = "文案";
-//        } else {
-//            wenAnOrPinLun = "评论";
-//        }
-//        prompt = prompt.replace("#{usePlatform}", usePlatform).replace("#{wenAnOrPinLun}", wenAnOrPinLun);
+    @Override
+    public Map<String, Object> getAiPrompt(TBMerchants merchant, TBPackages packages, Integer aiTokens, String usePlatform, List<TBMerchantLittleTag> littleTagList) {
+        String prompt = "店铺信息:\n" +
+                "    店铺名称: #{merchantName}\n" +
+                "    店铺标签:（重点参照）\n" +
+                "#{classifications}" +
+                "\n" +
+                "    用户选择套餐信息:\n" +
+                "        套餐名称: #{packageName}\n" +
+                "        套餐详情: #{packageDetail} （此项若无，不用参照）\n" +
+                "        套餐价格: #{packagePrice}  （此项若无，不用参照）\n" +
+                "\n" +
+                "根据上面的店铺信息及套餐信息生成一个#{wenAnOrPinLun},要求如下:\n" +
+                "    1.字数#{aiTokens}左右\n" +
+                "    2.发布平台:#{usePlatform}\n" +
+                "    3.不使用MarkDown格式\n" +
+                "    4.态度积极\n" +
+                "    5.遇到与店铺不匹配的词语可以忽略";
+        prompt = prompt.replace("#{merchantName}", merchant.getMerchantName())
+                .replace("#{packageName}", packages.getPackageName())
+                .replace("#{packageDetail}", packages.getPackageDetails());
+        if (packages.getPrice() == null) {
+            prompt = prompt.replace("#{packagePrice}", "空");
+        } else {
+            prompt = prompt.replace("#{packagePrice}", packages.getPrice().toString());
+        }
 
-        // 店铺分类标签及图片推送
-//        List<String> picList = new ArrayList<>();
-//        Map<String, List<String>> classificationTagMap = new HashMap<>();
-//        littleTagList.forEach(littleTag -> {
-//            List<String> tagList;
-//            if (!classificationTagMap.containsKey(littleTag.getParentId())) {
-//                tagList = new ArrayList<>();
-//                tagList.add(littleTag.getKeyword());
-//                classificationTagMap.put(littleTag.getParentId(), tagList);
-//            } else {
-//                tagList = classificationTagMap.get(littleTag.getParentId());
-//                tagList.add(littleTag.getKeyword());
-//                classificationTagMap.put(littleTag.getParentId(), tagList);
-//            }
-//        });
-//        QueryWrapper<TBTag> tagQueryWrapper = new QueryWrapper<>();
-//        tagQueryWrapper.in("id", classificationTagMap.keySet());
-//        List<TBTag> classificationTagList = tagService.getBaseMapper().selectList(tagQueryWrapper);
-//        Map<String, TBTag> classificationBigTagMap = new HashMap<>();
-//        classificationTagList.forEach(tag -> classificationBigTagMap.put(tag.getId(), tag));
-//
-//        StringBuilder classifications = new StringBuilder();
-//        for (String id : classificationTagMap.keySet()) {
-//            TBTag bigClassificationTag = classificationBigTagMap.get(id);
-//            classifications.append("\t\t").append(bigClassificationTag.getKeyword()).append(": ").append(JSON.toJSONString(classificationTagMap.get(id))).append("\n");
-//            if (!StringUtils.isEmpty(bigClassificationTag.getPicList())) {
-//                picList.addAll(Arrays.asList(bigClassificationTag.getPicList().split(",")));
-//            }
-//        }
-//        prompt = prompt.replace("#{classifications}", classifications.toString());
-//        picList = RandomUtil.randomSelectTwoElement(picList);
-//        if (!StringUtils.isEmpty(packages.getPackagePicList())) {
-//            picList.add(RandomUtil.randomSelectOneElement(Arrays.stream(packages.getPackagePicList().split(",")).toList()));
-//        }
-//        return Map.of(
-//                "aiPrompt", prompt,
-//                "picList", picList
-//        );
-//    }
+        if (packages.getPackageDetails() == null) {
+            prompt = prompt.replace("#{packageTagList}", "空");
+        } else {
+            List<String> packageTagsList = RandomUtil.processJsonList(packages.getPackageDetails());   // 随机挑选2个标签
+            prompt = prompt.replace("#{packageTagList}", JSON.toJSONString(packageTagsList));
+        }
+
+        String wenAnOrPinLun;
+        if (StringUtils.isEmpty(usePlatform)) {
+            usePlatform = "微信朋友圈  不需要表情包";
+            wenAnOrPinLun = "文案";
+        } else if (usePlatform.equals("小红书")) {
+            wenAnOrPinLun = "文案";
+            aiTokens = 900;
+        } else {
+            wenAnOrPinLun = "评论";
+        }
+        prompt = prompt.replace("#{usePlatform}", usePlatform).replace("#{wenAnOrPinLun}", wenAnOrPinLun).replace("#{aiTokens}", String.valueOf(aiTokens));
+
+        //店铺分类标签及图片推送
+        List<String> picList = new ArrayList<>();
+        Map<String, List<String>> classificationIdTagMap = new HashMap<>(); //{ 中间表ID : List<标签名>}
+        littleTagList.forEach(littleTag -> {
+            List<String> tagList;
+            if (!classificationIdTagMap.containsKey(littleTag.getClassificationMiddleId())) {
+                tagList = new ArrayList<>();
+                tagList.add(littleTag.getTagName());
+                classificationIdTagMap.put(littleTag.getClassificationMiddleId(), tagList);
+            } else {
+                tagList = classificationIdTagMap.get(littleTag.getClassificationMiddleId());
+                tagList.add(littleTag.getTagName());
+                classificationIdTagMap.put(littleTag.getClassificationMiddleId(), tagList);
+            }
+        });
+
+        Map<String, ClassificationDTO> classificationIdClassificationNameMap = new HashMap<>();
+        List<ClassificationDTO> classificationIdList = classificationMerchantMiddleService.getClassificationIdAndName(new ArrayList<>(classificationIdTagMap.keySet()));
+        classificationIdList.forEach(classificationDTO -> {
+            classificationIdClassificationNameMap.put(classificationDTO.getId(), classificationDTO);
+        });
+
+
+        StringBuilder classifications = new StringBuilder();
+        for (String id : classificationIdTagMap.keySet()) {
+            ClassificationDTO classification = classificationIdClassificationNameMap.get(id);
+            classifications.append("\t\t").append(classification.getClassificationName()).append(": ").append(JSON.toJSONString(classificationIdTagMap.get(id))).append("\n");
+            if (!StringUtils.isEmpty(classification.getPicList())) {
+                picList.addAll(Arrays.asList(classification.getPicList().split(",")));
+            }
+        }
+        prompt = prompt.replace("#{classifications}", classifications.toString());
+        picList = RandomUtil.randomSelectTwoElement(picList);
+        if (!StringUtils.isEmpty(packages.getPackagePicList())) {
+            picList.add(RandomUtil.randomSelectOneElement(Arrays.stream(packages.getPackagePicList().split(",")).toList()));
+        }
+        return Map.of(
+                "aiPrompt", prompt,
+                "picList", picList
+        );
+    }
+
+    @Override
+    public List<String> randomSelectedPic(TBMerchants merchant, TBPackages packages, List<TBMerchantLittleTag> littleTagList) {
+        // { 中间表ID : List<标签名>}
+        Map<String, List<String>> classificationIdTagMap = new HashMap<>();
+        littleTagList.forEach(littleTag -> {
+            List<String> tagList;
+            if (!classificationIdTagMap.containsKey(littleTag.getClassificationMiddleId())) {
+                tagList = new ArrayList<>();
+                tagList.add(littleTag.getTagName());
+                classificationIdTagMap.put(littleTag.getClassificationMiddleId(), tagList);
+            } else {
+                tagList = classificationIdTagMap.get(littleTag.getClassificationMiddleId());
+                tagList.add(littleTag.getTagName());
+                classificationIdTagMap.put(littleTag.getClassificationMiddleId(), tagList);
+            }
+        });
+
+        Map<String, ClassificationDTO> classificationIdClassificationNameMap = new HashMap<>();
+        List<ClassificationDTO> classificationIdList = classificationMerchantMiddleService.getClassificationIdAndName(new ArrayList<>(classificationIdTagMap.keySet()));
+        classificationIdList.forEach(classificationDTO -> {
+            classificationIdClassificationNameMap.put(classificationDTO.getId(), classificationDTO);
+        });
+        List<String> picList = new ArrayList<>();
+        for (String id : classificationIdTagMap.keySet()) {
+            ClassificationDTO classification = classificationIdClassificationNameMap.get(id);
+            if (!StringUtils.isEmpty(classification.getPicList())) {
+                picList.addAll(Arrays.asList(classification.getPicList().split(",")));
+            }
+        }
+        picList = RandomUtil.randomSelectTwoElement(picList);
+        if (!StringUtils.isEmpty(packages.getPackagePicList())) {
+            picList.add(RandomUtil.randomSelectOneElement(Arrays.stream(packages.getPackagePicList().split(",")).toList()));
+        }
+        return picList;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)

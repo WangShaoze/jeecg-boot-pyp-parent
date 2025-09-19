@@ -6,8 +6,13 @@ import org.jeecg.modules.pengyipeng.dto.MerchantInfoResponseDTO;
 import org.jeecg.modules.pengyipeng.dto.MerchantLoginDto;
 import org.jeecg.modules.pengyipeng.dto.MerchantServiceInfoDTO;
 import org.jeecg.modules.pengyipeng.entity.TBAgent;
+import org.jeecg.modules.pengyipeng.entity.TBMerchantLittleTag;
 import org.jeecg.modules.pengyipeng.entity.TBMerchants;
 import com.baomidou.mybatisplus.extension.service.IService;
+import org.jeecg.modules.pengyipeng.entity.TBPackages;
+
+import java.util.List;
+import java.util.Map;
 //import org.jeecg.modules.pengyipeng.entity.TBTag;
 
 
@@ -47,7 +52,8 @@ public interface ITBMerchantsService extends IService<TBMerchants> {
 //
 //    void saveBigTagToDB(MerchantKeywordClassificationRequestVO requestVO);
 
-//    Map<String, Object> getAiPrompt(TBMerchants merchant, TBPackages packages, Integer aiTokens, String usePlatform, List<TBTag> littleTagList);
+    Map<String, Object> getAiPrompt(TBMerchants merchant, TBPackages packages, Integer aiTokens, String usePlatform, List<TBMerchantLittleTag> littleTagList);
+    List<String> randomSelectedPic(TBMerchants merchant, TBPackages packages, List<TBMerchantLittleTag> littleTagList);
 
 
 }
