@@ -119,7 +119,7 @@ public class APPUserController {
                 return Result.error("店铺标签未指定！");
             }
         } catch (Exception e) {
-            log.error("generateAiPrompt: 出现错误！错误原因如下:{}", e.getMessage());
+            log.error("generateAiPrompt: 出现错误！错误原因如下:", e);
             return Result.error("生成AI提示词出错！请联系管理员！");
         }
 

@@ -2,6 +2,7 @@ package org.jeecg.modules.pengyipeng.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.jeecg.modules.pengyipeng.dto.MerchantInfoResponseDTO;
 import org.jeecg.modules.pengyipeng.dto.MerchantLoginDto;
 import org.jeecg.modules.pengyipeng.dto.MerchantServiceInfoDTO;
@@ -52,7 +53,7 @@ public interface ITBMerchantsService extends IService<TBMerchants> {
 //
 //    void saveBigTagToDB(MerchantKeywordClassificationRequestVO requestVO);
 
-    Map<String, Object> getAiPrompt(TBMerchants merchant, TBPackages packages, Integer aiTokens, String usePlatform, List<TBMerchantLittleTag> littleTagList);
+    Map<String, Object> getAiPrompt(TBMerchants merchant, TBPackages packages, Integer aiTokens, String usePlatform, List<TBMerchantLittleTag> littleTagList) ;
     List<String> randomSelectedPic(TBMerchants merchant, TBPackages packages, List<TBMerchantLittleTag> littleTagList);
 
 

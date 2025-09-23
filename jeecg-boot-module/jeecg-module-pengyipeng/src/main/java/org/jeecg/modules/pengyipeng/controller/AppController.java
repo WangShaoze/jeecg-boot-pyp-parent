@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.util.Strings;
 import org.jeecg.common.api.vo.Result;
 import org.jeecg.common.aspect.annotation.AutoLog;
 import org.jeecg.modules.pengyipeng.dto.*;
@@ -125,7 +126,7 @@ public class AppController {
             classificationMerchantMiddle = new TBClassificationMerchantMiddle();
         }
         classificationMerchantMiddle.setMerchantId(merchantId);
-        classificationMerchantMiddle.setIsOpen(isOpen.toString());
+        classificationMerchantMiddle.setIsOpen(String.valueOf(isOpen));
         classificationMerchantMiddle.setClassificationOptionId(classificationOptionId);
         classificationMerchantMiddleService.saveOrUpdate(classificationMerchantMiddle);
         return Result.ok(classificationMerchantMiddle);
@@ -287,6 +288,7 @@ public class AppController {
                     classificationMerchantMiddle.setPicList("");
                 }
             }
+            classificationMerchantMiddle.setIsOpen("1");
             classificationMerchantMiddleService.saveOrUpdate(classificationMerchantMiddle);
             return Result.ok(classificationMerchantMiddle);
         } catch (Exception e) {
@@ -513,6 +515,7 @@ public class AppController {
             }
             // 获取token
             String token = merchantsService.getXAccessToken(merchant.getSysUid());
+            log.info("merchantSilentLogin516:{}", token);
             merchant.setToken(token);
             return Result.ok(merchant);
         } catch (Exception e) {
@@ -603,9 +606,13 @@ public class AppController {
                                         @RequestParam(name = "platformName") String platformName,
                                         @RequestParam(name = "shortLink") String shortLink,
                                         @RequestParam(name = "parseResult") String parseResult) {
-        if (merchantId == null || StringUtils.isEmpty(platformName) || StringUtils.isEmpty(shortLink)) {
+        if (merchantId == null || StringUtils.isEmpty(platformName) || StringUtils.isEmpty(shortLink)
+        ) {
             return Result.error("请正确传入参数！");
         } else {
+            if (!StringUtils.isEmpty(parseResult)) {
+                return Result.error("未获取到解析结果！请等待解析结果返回后再保存！");
+            }
             TBMerchants merchant = merchantsService.getById(merchantId);
             if (merchant == null) {
                 return Result.error("未找到该商家ID！");

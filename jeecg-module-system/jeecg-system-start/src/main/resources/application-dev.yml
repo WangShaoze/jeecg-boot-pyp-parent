@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8081
   undertow:
     # max-http-post-size: 10MB # 平替 tomcat server.tomcat.max-swallow-siz， undertow该值默认为-1
     worker-threads: 16  # 4核CPU标准配置
@@ -161,7 +161,7 @@ spring:
           #driver-class-name: com.mysql.cj.jdbc.Driver
   #redis 配置
   redis:
-    database: 0
+    database: 1
     host: 192.168.47.134
     port: 6379
     password: 123456

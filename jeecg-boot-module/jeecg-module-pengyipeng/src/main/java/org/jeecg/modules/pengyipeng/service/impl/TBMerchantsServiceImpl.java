@@ -7,6 +7,9 @@ import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xkcoding.http.HttpUtil;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.error.WxErrorException;
@@ -249,9 +252,13 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
     @Override
     public String getXAccessToken(String sysUid) {
         SysUser sysUser = sysUserService.getById(sysUid);
+        System.out.println("username:" + sysUser.getUsername());
+        System.out.println("password:" + sysUser.getPassword());
         //1.生成token
         String token = JwtUtil.sign(sysUser.getUsername(), sysUser.getPassword());
+        System.out.println("token:" + token);
         // 设置token缓存有效时间
+        redisUtil.del(CommonConstant.PREFIX_USER_TOKEN + token);  // 写入之前，应该先删除redis中的token
         redisUtil.set(CommonConstant.PREFIX_USER_TOKEN + token, token);
         redisUtil.expire(CommonConstant.PREFIX_USER_TOKEN + token, JwtUtil.EXPIRE_TIME * 2 / 1000);
 
@@ -272,6 +279,7 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
                 "    用户选择套餐信息:\n" +
                 "        套餐名称: #{packageName}\n" +
                 "        套餐详情: #{packageDetail} （此项若无，不用参照）\n" +
+                "        套餐标签: #{packageTagList} （此项若无，不用参照）\n" +
                 "        套餐价格: #{packagePrice}  （此项若无，不用参照）\n" +
                 "\n" +
                 "根据上面的店铺信息及套餐信息生成一个#{wenAnOrPinLun},要求如下:\n" +
@@ -289,10 +297,10 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
             prompt = prompt.replace("#{packagePrice}", packages.getPrice().toString());
         }
 
-        if (packages.getPackageDetails() == null) {
+        if (packages.getTags() == null) {
             prompt = prompt.replace("#{packageTagList}", "空");
         } else {
-            List<String> packageTagsList = RandomUtil.processJsonList(packages.getPackageDetails());   // 随机挑选2个标签
+            List<String> packageTagsList = RandomUtil.processJsonList(packages.getTags());   // 随机挑选2个标签
             prompt = prompt.replace("#{packageTagList}", JSON.toJSONString(packageTagsList));
         }
 
@@ -340,13 +348,21 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
             }
         }
         prompt = prompt.replace("#{classifications}", classifications.toString());
-        picList = RandomUtil.randomSelectTwoElement(picList);
+        List<String> newPicList = new ArrayList<>(Arrays.asList(picList.toArray(new String[0])));
         if (!StringUtils.isEmpty(packages.getPackagePicList())) {
-            picList.add(RandomUtil.randomSelectOneElement(Arrays.stream(packages.getPackagePicList().split(",")).toList()));
+            // 将JSON字符串转换为List<String>
+            ObjectMapper objectMapper = new ObjectMapper();
+            try {
+                List<String> list = objectMapper.readValue(packages.getPackagePicList(), new TypeReference<List<String>>() {
+                });
+                newPicList.add(RandomUtil.randomSelectOneElement(list));
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+            }
         }
         return Map.of(
                 "aiPrompt", prompt,
-                "picList", picList
+                "picList", newPicList
         );
     }
 
@@ -372,6 +388,8 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
         classificationIdList.forEach(classificationDTO -> {
             classificationIdClassificationNameMap.put(classificationDTO.getId(), classificationDTO);
         });
+
+        List<String> newPicList = new ArrayList<>();
         List<String> picList = new ArrayList<>();
         for (String id : classificationIdTagMap.keySet()) {
             ClassificationDTO classification = classificationIdClassificationNameMap.get(id);
@@ -379,11 +397,20 @@ public class TBMerchantsServiceImpl extends ServiceImpl<TBMerchantsMapper, TBMer
                 picList.addAll(Arrays.asList(classification.getPicList().split(",")));
             }
         }
-        picList = RandomUtil.randomSelectTwoElement(picList);
+
+        newPicList.addAll(RandomUtil.randomSelectTwoElement(picList));
         if (!StringUtils.isEmpty(packages.getPackagePicList())) {
-            picList.add(RandomUtil.randomSelectOneElement(Arrays.stream(packages.getPackagePicList().split(",")).toList()));
+            // 将JSON字符串转换为List<String>
+            ObjectMapper objectMapper = new ObjectMapper();
+            try {
+                List<String> list = objectMapper.readValue(packages.getPackagePicList(), new TypeReference<List<String>>() {
+                });
+                newPicList.add(RandomUtil.randomSelectOneElement(list));
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+            }
         }
-        return picList;
+        return newPicList;
     }
 
     @Override
